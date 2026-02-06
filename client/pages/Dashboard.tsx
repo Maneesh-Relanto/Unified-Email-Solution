@@ -24,14 +24,17 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-border bg-white">
-          <h2 className="text-2xl font-bold text-foreground">
-            {selectedProvider?.name} Inbox
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {selectedProvider?.emails.length} email
-            {selectedProvider?.emails.length !== 1 ? "s" : ""}
-          </p>
+        <div className="px-6 py-4 border-b border-border bg-card flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">
+              {selectedProvider?.name} Inbox
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {selectedProvider?.emails.length} email
+              {selectedProvider?.emails.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <ThemeSwitcher variant="compact" />
         </div>
 
         {/* Email List */}
