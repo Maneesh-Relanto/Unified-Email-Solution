@@ -31,17 +31,28 @@ const App = () => (
 
 declare global {
   interface Window {
-    __root?: ReturnType<typeof createRoot>;
-    __rootInitialized?: boolean;
+    __appRoot?: ReturnType<typeof createRoot>;
   }
 }
 
-const rootElement = document.getElementById("root");
-if (rootElement && !window.__rootInitialized) {
-  window.__root = createRoot(rootElement);
-  window.__rootInitialized = true;
+function initializeApp() {
+  const rootElement = document.getElementById("root");
+  if (!rootElement) return;
+
+  try {
+    // Try to create a new root - if it fails, the root already exists
+    if (!window.__appRoot) {
+      window.__appRoot = createRoot(rootElement);
+    }
+  } catch (e) {
+    // If createRoot fails because root already exists, that's fine
+    // The existing root will be used for render
+  }
+
+  // Render with the root (either newly created or existing)
+  if (window.__appRoot) {
+    window.__appRoot.render(<App />);
+  }
 }
 
-if (window.__root) {
-  window.__root.render(<App />);
-}
+initializeApp();
