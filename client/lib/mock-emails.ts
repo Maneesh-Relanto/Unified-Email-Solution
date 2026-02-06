@@ -9,6 +9,7 @@ export interface Email {
   preview: string;
   date: Date;
   read: boolean;
+  providerName?: string;
 }
 
 export interface Provider {
