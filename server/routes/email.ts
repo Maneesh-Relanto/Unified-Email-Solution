@@ -411,8 +411,34 @@ export async function testConnectionWithProgress(req: Request, res: Response) {
           yahoo: 'Go to Account Security settings → App Passwords → Generate and copy your App Password',
           outlook: 'Use your Microsoft account password (the one you use to sign in)',
           rediff: 'Use your Rediff email account password',
-        },\n      });
-    }\n  } catch (error) {\n    const message = error instanceof Error ? error.message : 'Unknown error';\n    console.error('Connection test error:', error);\n    res.json({\n      success: false,\n      step: 3,\n      stepName: 'Authenticating with Provider',\n      status: 'failed',\n      message: `Connection error: ${message}`,\n      troubleshooting: 'Check your internet connection and credentials',\n    });\n  }\n}\n\n/**\n * Test connection for an email account\n * POST /api/email/test\n * \n * Body: {\n *   \"email\": \"user@gmail.com\",\n *   \"password\": \"app-password (with or without spaces)\",\n *   \"provider\": \"gmail\"\n * }\n */\nexport async function testConnection(req: Request, res: Response) {
+        },
+      });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Connection test error:', error);
+    res.json({
+      success: false,
+      step: 3,
+      stepName: 'Authenticating with Provider',
+      status: 'failed',
+      message: `Connection error: ${message}`,
+      troubleshooting: 'Check your internet connection and credentials',
+    });
+  }
+}
+
+/**
+ * Test connection for an email account
+ * POST /api/email/test
+ * 
+ * Body: {
+ *   "email": "user@gmail.com",
+ *   "password": "app-password (with or without spaces)",
+ *   "provider": "gmail"
+ * }
+ */
+export async function testConnection(req: Request, res: Response) {
   try {
     const validation = AddEmailSchema.safeParse(req.body);
     if (!validation.success) {
