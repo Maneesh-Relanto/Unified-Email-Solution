@@ -29,4 +29,7 @@ const App = () => (
   </QueryClientProvider>
 );
 
-createRoot(document.getElementById("root")!).render(<App />);
+const rootElement = document.getElementById("root");
+if (rootElement && !rootElement.hasChildNodes()) {
+  createRoot(rootElement).render(<App />);
+}
