@@ -69,7 +69,7 @@ export default function Index() {
           />
         </div>
 
-          {/* Call-to-Action Section */}
+        {/* Call-to-Action Section */}
         <div className="mt-12 bg-primary rounded-2xl px-8 py-12 text-center text-primary-foreground">
           <h2 className="text-3xl font-bold mb-4">
             Ready to Unify Your Email?

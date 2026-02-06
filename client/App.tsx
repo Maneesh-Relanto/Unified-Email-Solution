@@ -25,7 +25,10 @@ const App = () => (
           <Sonner />
           <SecurityOverlay />
           <BrowserRouter>
-            <div className="h-screen w-screen overflow-hidden" data-page-wrapper>
+            <div
+              className="h-screen w-screen overflow-hidden"
+              data-page-wrapper
+            >
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/dashboard" element={<Dashboard />} />
