@@ -1,4 +1,4 @@
-import { Email } from "@/lib/mock-emails";
+import { Email, mockProviders } from "@/lib/mock-emails";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
