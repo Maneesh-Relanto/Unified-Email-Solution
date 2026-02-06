@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Palette } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const themeConfig: {
   value: Theme;
