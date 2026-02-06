@@ -34,7 +34,7 @@ export default function Dashboard() {
               {selectedProvider?.emails.length !== 1 ? "s" : ""}
             </p>
           </div>
-          <ThemeSwitcher variant="compact" />
+          <ThemeDropdown />
         </div>
 
         {/* Email List */}
