@@ -17,14 +17,15 @@ export function ProviderCard({
   unreadEmails,
   onClick,
 }: ProviderCardProps) {
-  const unreadPercentage = totalEmails > 0 ? (unreadEmails / totalEmails) * 100 : 0;
+  const unreadPercentage =
+    totalEmails > 0 ? (unreadEmails / totalEmails) * 100 : 0;
 
   return (
     <button
       onClick={onClick}
       className={cn(
         "w-full p-6 rounded-xl border-2 transition-all hover:scale-105 hover:shadow-lg",
-        "bg-card border-border hover:border-primary cursor-pointer"
+        "bg-card border-border hover:border-primary cursor-pointer",
       )}
     >
       {/* Header */}

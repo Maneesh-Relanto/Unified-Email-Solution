@@ -1,11 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import {
-  Mail,
-  Zap,
-  Shield,
-  BarChart3,
-} from "lucide-react";
+import { Mail, Zap, Shield, BarChart3 } from "lucide-react";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 
 export default function Index() {
@@ -76,7 +71,9 @@ export default function Index() {
 
         {/* Call-to-Action Section */}
         <div className="mt-24 bg-primary rounded-2xl px-8 py-12 text-center text-primary-foreground">
-          <h2 className="text-3xl font-bold mb-4">Ready to Unify Your Email?</h2>
+          <h2 className="text-3xl font-bold mb-4">
+            Ready to Unify Your Email?
+          </h2>
           <p className="text-lg opacity-90 mb-8 max-w-xl mx-auto">
             Start managing all your emails in one beautiful dashboard. No setup
             required - view sample data right away.

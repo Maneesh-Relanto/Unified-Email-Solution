@@ -60,7 +60,12 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             {isOverviewMode ? (
-              <Button asChild variant="outline" size="sm" title="View unified inbox">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                title="View unified inbox"
+              >
                 <Link to="/unified-inbox" className="gap-2">
                   <Inbox className="w-4 h-4" />
                 </Link>

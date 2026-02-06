@@ -31,7 +31,7 @@ export function DashboardOverview({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 max-w-5xl">
           {mockProviders.map((provider) => {
             const unreadCount = provider.emails.filter(
-              (email) => !email.read
+              (email) => !email.read,
             ).length;
 
             return (

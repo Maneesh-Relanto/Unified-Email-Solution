@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { LayoutGrid } from "lucide-react";
 
 export default function UnifiedInbox() {
-  const [selectedProviderId, setSelectedProviderId] = useState<
-    string | "all"
-  >("all");
+  const [selectedProviderId, setSelectedProviderId] = useState<string | "all">(
+    "all",
+  );
   const [selectedEmailId, setSelectedEmailId] = useState<string | undefined>();
 
   // Get emails based on selected provider
@@ -22,7 +22,7 @@ export default function UnifiedInbox() {
         provider.emails.map((email) => ({
           ...email,
           providerName: provider.name,
-        }))
+        })),
       );
       return allEmails;
     } else {
@@ -34,7 +34,7 @@ export default function UnifiedInbox() {
 
   // Sort emails by date (newest first)
   const emails = getEmails().sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
 
   const unreadCount = emails.filter((email) => !email.read).length;
@@ -64,7 +64,12 @@ export default function UnifiedInbox() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm" title="Back to dashboard">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              title="Back to dashboard"
+            >
               <Link to="/dashboard">
                 <LayoutGrid className="w-4 h-4" />
               </Link>

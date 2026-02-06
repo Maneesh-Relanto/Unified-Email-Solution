@@ -35,7 +35,7 @@ export function UnifiedSidebar({
             "w-full px-3 py-2 rounded-lg mb-1 text-left transition-all flex items-center gap-3",
             selectedProviderId === "all"
               ? "bg-primary text-primary-foreground shadow-md"
-              : "text-foreground hover:bg-slate-200"
+              : "text-foreground hover:bg-slate-200",
           )}
         >
           <span className="text-xl">📬</span>
@@ -59,7 +59,7 @@ export function UnifiedSidebar({
               "w-full px-3 py-2 rounded-lg mb-1 text-left transition-all flex items-center gap-3",
               selectedProviderId === provider.id
                 ? "bg-primary text-primary-foreground shadow-md"
-                : "text-foreground hover:bg-slate-200"
+                : "text-foreground hover:bg-slate-200",
             )}
           >
             <span className="text-xl">{provider.icon}</span>
