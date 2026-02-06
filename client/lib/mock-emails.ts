@@ -114,6 +114,8 @@ export const mockProviders: Provider[] = [
     id: "yahoo",
     name: "Yahoo",
     icon: "🔷",
+    color: "bg-purple-600",
+    abbreviation: "YH",
     emails: [
       {
         id: "yahoo-1",
