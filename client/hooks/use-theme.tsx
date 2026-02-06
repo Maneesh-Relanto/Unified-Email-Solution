@@ -16,17 +16,10 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
 
-  // Apply theme whenever it changes
+  // Apply theme whenever it changes - using data attribute
   useEffect(() => {
     const html = document.documentElement;
-
-    // Remove all theme classes
-    THEMES.forEach((t) => {
-      html.classList.remove(`theme-${t}`);
-    });
-
-    // Add the selected theme class (always add it for proper CSS cascade)
-    html.classList.add(`theme-${theme}`);
+    html.setAttribute("data-theme", theme);
   }, [theme]);
 
   // Load theme from localStorage on mount
@@ -46,7 +39,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Always provide the context - no early return that breaks context
   return (
     <ThemeContext.Provider value={{ theme, setTheme, themes: THEMES }}>
       {children}
