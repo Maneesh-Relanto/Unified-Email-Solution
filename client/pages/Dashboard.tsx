@@ -2,6 +2,7 @@ import { useState } from "react";
 import { mockProviders } from "@/lib/mock-emails";
 import { SidebarNav } from "@/components/SidebarNav";
 import { EmailList } from "@/components/EmailList";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 
 export default function Dashboard() {
   const [selectedProviderId, setSelectedProviderId] = useState("gmail");
