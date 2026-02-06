@@ -7,7 +7,7 @@ import { DashboardOverview } from "@/components/DashboardOverview";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
 import { Button } from "@/components/ui/button";
-import { Home, LayoutGrid } from "lucide-react";
+import { Home, LayoutGrid, Inbox } from "lucide-react";
 
 export default function Dashboard() {
   const [selectedProviderId, setSelectedProviderId] = useState<
