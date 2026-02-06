@@ -188,6 +188,8 @@ export const mockProviders: Provider[] = [
     id: "outlook",
     name: "Outlook",
     icon: "📬",
+    color: "bg-blue-500",
+    abbreviation: "OL",
     emails: [
       {
         id: "outlook-1",
