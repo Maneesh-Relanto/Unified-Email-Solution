@@ -55,7 +55,7 @@ export default function UnifiedInbox() {
           <div>
             <h2 className="text-2xl font-bold text-foreground">
               {selectedProviderId === "all"
-                ? "All Emails"
+                ? "Unified Inbox"
                 : `${mockProviders.find((p) => p.id === selectedProviderId)?.name} Emails`}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
@@ -64,6 +64,11 @@ export default function UnifiedInbox() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm" title="Back to dashboard">
+              <Link to="/dashboard">
+                <LayoutGrid className="w-4 h-4" />
+              </Link>
+            </Button>
             <Button asChild variant="outline" size="sm" title="Go to home page">
               <Link to="/">
                 <Home className="w-4 h-4" />
