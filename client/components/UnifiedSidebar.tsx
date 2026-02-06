@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Provider } from "@/lib/mock-emails";
-import { Inbox } from "lucide-react";
+import { Mail, Inbox } from "lucide-react";
 
 interface UnifiedSidebarProps {
   providers: Provider[];
