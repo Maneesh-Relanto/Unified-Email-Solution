@@ -59,7 +59,13 @@ export default function Dashboard() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {!isOverviewMode && (
+            {isOverviewMode ? (
+              <Button asChild variant="outline" size="sm" title="View unified inbox">
+                <Link to="/unified-inbox" className="gap-2">
+                  <Inbox className="w-4 h-4" />
+                </Link>
+              </Button>
+            ) : (
               <Button
                 variant="outline"
                 size="sm"
@@ -67,13 +73,6 @@ export default function Dashboard() {
                 title="Back to dashboard overview"
               >
                 <LayoutGrid className="w-4 h-4" />
-              </Button>
-            )}
-            {isOverviewMode && (
-              <Button asChild variant="outline" size="sm" title="View unified inbox">
-                <Link to="/unified-inbox" className="gap-2">
-                  <Inbox className="w-4 h-4" />
-                </Link>
               </Button>
             )}
             <Button asChild variant="outline" size="sm" title="Go to home page">
