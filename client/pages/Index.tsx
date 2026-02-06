@@ -34,13 +34,13 @@ export default function Index() {
         <div className="text-center mb-16">
           <h1 className="text-5xl sm:text-6xl font-bold text-foreground mb-6 leading-tight">
             Email Analyzer
-            <span className="text-blue-600"> Unified Email Management</span>
+            <span className="text-primary"> Unified Email Management</span>
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
             Monitor and manage emails from Gmail, Yahoo, Outlook, and Rediff in
             one place. Stay organized with our modern, unified email interface.
           </p>
-          <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700">
+          <Button asChild size="lg">
             <Link to="/dashboard">Go to Dashboard</Link>
           </Button>
         </div>
