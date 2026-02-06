@@ -5,9 +5,9 @@ import { ThemeDropdown } from "@/components/ThemeDropdown";
 
 export default function Index() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen bg-background flex flex-col overflow-auto">
       {/* Navigation Bar */}
-      <nav className="bg-card border-b border-border sticky top-0 z-10">
+      <nav className="bg-card border-b border-border sticky top-0 z-10 flex-shrink-0">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Mail className="w-8 h-8 text-primary" />
@@ -25,7 +25,7 @@ export default function Index() {
       </nav>
 
       {/* Hero Section */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-1 overflow-auto">
         <div className="text-center mb-16">
           <h1 className="text-5xl sm:text-6xl font-bold text-foreground mb-6 leading-tight">
             Email Analyzer
