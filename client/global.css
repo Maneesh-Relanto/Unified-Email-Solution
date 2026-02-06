@@ -7,11 +7,14 @@
 
 @layer base {
   /**
-   * Tailwind CSS theme
+   * Tailwind CSS themes
    * tailwind.config.ts expects the following color variables to be expressed as HSL values.
    * A different format will require also updating the theme in tailwind.config.ts.
   */
-  :root {
+
+  /* THEME 1: LIGHT (Default) */
+  :root,
+  .theme-light {
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
 
@@ -43,23 +46,17 @@
     --radius: 0.5rem;
 
     --sidebar-background: 217 32% 17%;
-
     --sidebar-foreground: 210 40% 98%;
-
     --sidebar-primary: 217 91% 60%;
-
     --sidebar-primary-foreground: 0 0% 100%;
-
     --sidebar-accent: 217 91% 60%;
-
     --sidebar-accent-foreground: 210 40% 98%;
-
     --sidebar-border: 217 32% 25%;
-
     --sidebar-ring: 217 91% 60%;
   }
 
-  .dark {
+  /* THEME 2: DARK */
+  .theme-dark {
     --background: 222 47% 11%;
     --foreground: 210 40% 98%;
 
@@ -87,6 +84,9 @@
     --border: 217 32% 25%;
     --input: 217 32% 25%;
     --ring: 217 91% 60%;
+
+    --radius: 0.5rem;
+
     --sidebar-background: 217 32% 17%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 217 91% 60%;
@@ -95,6 +95,132 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217 32% 25%;
     --sidebar-ring: 217 91% 60%;
+  }
+
+  /* THEME 3: WARM (Orange, Brown, Gold) */
+  .theme-warm {
+    --background: 30 100% 97%;
+    --foreground: 20 50% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 20 50% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 50% 15%;
+
+    --primary: 25 95% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 35 100% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 30 80% 88%;
+    --muted-foreground: 20 20% 40%;
+
+    --accent: 45 96% 56%;
+    --accent-foreground: 20 50% 15%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 30 60% 85%;
+    --input: 30 80% 92%;
+    --ring: 25 95% 53%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 20 50% 20%;
+    --sidebar-foreground: 30 100% 97%;
+    --sidebar-primary: 25 95% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 45 96% 56%;
+    --sidebar-accent-foreground: 20 50% 15%;
+    --sidebar-border: 20 60% 30%;
+    --sidebar-ring: 25 95% 53%;
+  }
+
+  /* THEME 4: COLD (Light Blue, Cyan) */
+  .theme-cold {
+    --background: 200 100% 97%;
+    --foreground: 200 50% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 200 50% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 50% 15%;
+
+    --primary: 190 100% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 180 90% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 200 60% 85%;
+    --muted-foreground: 200 30% 35%;
+
+    --accent: 170 100% 44%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 200 70% 80%;
+    --input: 200 60% 90%;
+    --ring: 190 100% 50%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 200 60% 20%;
+    --sidebar-foreground: 200 100% 97%;
+    --sidebar-primary: 190 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 170 100% 44%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 200 70% 30%;
+    --sidebar-ring: 190 100% 50%;
+  }
+
+  /* THEME 5: TENDER PINK (Soft Pink, Rose) */
+  .theme-tender-pink {
+    --background: 350 100% 97%;
+    --foreground: 340 60% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 340 60% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 340 60% 20%;
+
+    --primary: 330 80% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 350 100% 60%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 350 70% 88%;
+    --muted-foreground: 340 30% 40%;
+
+    --accent: 280 80% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 350 70% 85%;
+    --input: 350 80% 92%;
+    --ring: 330 80% 55%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 340 60% 25%;
+    --sidebar-foreground: 350 100% 97%;
+    --sidebar-primary: 330 80% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 280 80% 60%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 340 70% 35%;
+    --sidebar-ring: 330 80% 55%;
   }
 }
 
