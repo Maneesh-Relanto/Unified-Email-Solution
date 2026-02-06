@@ -15,7 +15,6 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
-  const [mounted, setMounted] = useState(false);
 
   // Apply theme whenever it changes
   useEffect(() => {
@@ -38,7 +37,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       setThemeState("light");
     }
-    setMounted(true);
   }, []);
 
   const setTheme = (newTheme: Theme) => {
@@ -48,11 +46,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Prevent flash of unstyled content
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
+  // Always provide the context - no early return that breaks context
   return (
     <ThemeContext.Provider value={{ theme, setTheme, themes: THEMES }}>
       {children}
