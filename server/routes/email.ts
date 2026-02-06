@@ -308,16 +308,103 @@ export function removeEmailAccount(req: Request, res: Response) {
 }
 
 /**
- * Test connection for an email account
- * POST /api/email/test
+ * Test connection with step-by-step progress feedback
+ * POST /api/email/test-with-progress
  * 
  * Body: {
  *   "email": "user@gmail.com",
- *   "password": "app-password",
+ *   "password": "xxxx xxxx xxxx xxxx" (spaces are stripped automatically),
  *   "provider": "gmail"
  * }
+ * 
+ * Returns:
+ * {
+ *   "success": boolean,
+ *   "step": 1-4,
+ *   "stepName": "Validating Input" | "Retrieving Server Config" | "Authenticating with Provider" | "Ready to Save",
+ *   "status": "in-progress" | "completed" | "failed",
+ *   "message": string,
+ *   "troubleshooting": object (only on failure)
+ * }
  */
-export async function testConnection(req: Request, res: Response) {
+export async function testConnectionWithProgress(req: Request, res: Response) {
+  try {
+    const validation = AddEmailSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.json({
+        success: false,
+        step: 1,
+        stepName: 'Validating Input',
+        status: 'failed',
+        message: 'Invalid email address or missing password',
+        details: validation.error.errors,
+      });
+    }
+
+    let { email, password, provider } = validation.data;
+    console.log(`Testing connection with progress for ${email} (${provider})`);
+
+    // Strip spaces from password (Gmail App Passwords have spaces: xxxx xxxx xxxx xxxx)
+    const cleanPassword = password.replace(/\s+/g, '');
+
+    // Step 2: Get IMAP Config
+    const imapConfig = getImapConfigForProvider(provider);
+    if (!imapConfig) {
+      return res.json({
+        success: false,
+        step: 2,
+        stepName: 'Retrieving Server Config',
+        status: 'failed',
+        message: `Unsupported provider: ${provider}. Supported: gmail, yahoo, outlook, rediff`,
+      });
+    }
+
+    // Step 3: Authenticate with Provider
+    const { ImapEmailProvider } = await import('../services/email/imap-provider');
+
+    const testProvider = new ImapEmailProvider({
+      providerType: 'imap',
+      email,
+      provider,
+      imapConfig: {
+        ...imapConfig,
+        username: email,
+        password: cleanPassword,
+      },
+    });
+
+    console.log(`Authenticating ${email}...`);
+    const authenticated = await testProvider.authenticate();
+
+    // Always try to disconnect properly
+    try {
+      await testProvider.disconnect();
+    } catch (disconnectError) {
+      console.error('Error disconnecting after test:', disconnectError);
+    }
+
+    if (authenticated) {
+      console.log(`✓ Successfully authenticated ${email}`);
+      return res.json({
+        success: true,
+        step: 4,
+        stepName: 'Ready to Save',
+        status: 'completed',
+        message: `Successfully authenticated! Click \"Add\" to save this account.`,
+        provider: provider.toUpperCase(),
+        email: email,
+      });
+    } else {
+      console.error(`✗ Authentication failed for ${email}`);
+      return res.json({
+        success: false,
+        step: 3,
+        stepName: 'Authenticating with Provider',
+        status: 'failed',
+        message: `Wrong email or password for ${provider}`,
+        troubleshooting: {
+          gmail: '1. Go to myaccount.google.com/apppasswords\\n2. Select Mail and Windows\\n3. Copy the 16-char password (xxxx xxxx xxxx xxxx)\\n4. We automatically remove spaces - paste with spaces!',\n          yahoo: 'Generate App Password from Account Security settings',\n          outlook: 'Use your Microsoft account password',\n          rediff: 'Use your Rediff account password',\n        },\n      });
+    }\n  } catch (error) {\n    const message = error instanceof Error ? error.message : 'Unknown error';\n    console.error('Connection test error:', error);\n    res.json({\n      success: false,\n      step: 3,\n      stepName: 'Authenticating with Provider',\n      status: 'failed',\n      message: `Connection error: ${message}`,\n      troubleshooting: 'Check your internet connection and credentials',\n    });\n  }\n}\n\n/**\n * Test connection for an email account\n * POST /api/email/test\n * \n * Body: {\n *   \"email\": \"user@gmail.com\",\n *   \"password\": \"app-password (with or without spaces)\",\n *   \"provider\": \"gmail\"\n * }\n */\nexport async function testConnection(req: Request, res: Response) {
   try {
     const validation = AddEmailSchema.safeParse(req.body);
     if (!validation.success) {
@@ -327,8 +414,11 @@ export async function testConnection(req: Request, res: Response) {
       });
     }
 
-    const { email, password, provider } = validation.data;
+    let { email, password, provider } = validation.data;
     console.log(`Testing connection for ${email} (${provider})`);
+
+    // Strip spaces from password (Gmail App Passwords have spaces: xxxx xxxx xxxx xxxx)
+    const cleanPassword = password.replace(/\s+/g, '');
 
     // Get IMAP config
     const imapConfig = getImapConfigForProvider(provider);
@@ -349,7 +439,7 @@ export async function testConnection(req: Request, res: Response) {
       imapConfig: {
         ...imapConfig,
         username: email,
-        password,
+        password: cleanPassword,
       },
     });
 
@@ -379,7 +469,8 @@ export async function testConnection(req: Request, res: Response) {
 For Gmail:
 - Use an App Password (not your regular password)
 - Enable 2-Step Verification first
-- Generate password at: https://myaccount.google.com/apppasswords`,
+- Generate password at: https://myaccount.google.com/apppasswords
+- App password format: xxxx xxxx xxxx xxxx (copy with spaces, we'll remove them)`,
         connected: false,
       });
     }
@@ -391,7 +482,7 @@ For Gmail:
       message: `${message}
 
 Troubleshooting:
-- Gmail: Use App Password from myaccount.google.com/apppasswords
+- Gmail: Use App Password from myaccount.google.com/apppasswords (copy with spaces)
 - Yahoo: Use generated App Password
 - Outlook: Use your Microsoft password
 - Make sure your email address is correct`,

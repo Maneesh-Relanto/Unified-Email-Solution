@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Settings, Mail, Trash2, Plus, AlertCircle, CheckCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, Mail, Trash2, Plus, AlertCircle, CheckCircle, Loader, ChevronRight, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
@@ -11,6 +11,13 @@ interface ConfiguredAccount {
   configured: boolean;
 }
 
+interface ProgressStep {
+  step: number;
+  stepName: string;
+  status: "pending" | "in-progress" | "completed" | "failed";
+  message?: string;
+}
+
 const PROVIDERS = [
   { id: "gmail", name: "Gmail", icon: "📧", color: "bg-red-500" },
   { id: "yahoo", name: "Yahoo", icon: "📨", color: "bg-purple-500" },
@@ -18,13 +25,131 @@ const PROVIDERS = [
   { id: "rediff", name: "Rediff", icon: "🔴", color: "bg-red-600" },
 ];
 
+const PROGRESS_STEPS = [
+  { step: 1, stepName: "Validating Input", description: "Checking email format and password" },
+  { step: 2, stepName: "Retrieving Server Config", description: "Getting IMAP server details" },
+  { step: 3, stepName: "Authenticating with Provider", description: "Connecting to email server" },
+  { step: 4, stepName: "Ready to Save", description: "Account verified and ready" },
+];
+
+function ProgressModal({ isOpen, provider, email, onConfirm, onCancel, progressData }: any) {
+  if (!isOpen) return null;
+
+  const getStepStatus = (stepNum: number) => {
+    if (progressData?.step === undefined) return "pending";
+    if (stepNum < progressData.step) return "completed";
+    if (stepNum === progressData.step) return progressData.status || "in-progress";
+    return "pending";
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case "in-progress":
+        return <Loader className="w-5 h-5 text-blue-500 animate-spin" />;
+      case "failed":
+        return <AlertCircle className="w-5 h-5 text-red-500" />;
+      default:
+        return <div className="w-5 h-5 rounded-full border-2 border-gray-300" />;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        {/* Header */}
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            Adding {provider.toUpperCase()} Account
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{email}</p>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="space-y-4 mb-6">
+          {PROGRESS_STEPS.map((step) => {
+            const status = getStepStatus(step.step);
+            return (
+              <div key={step.step} className="flex items-start gap-3">
+                <div className="pt-1">{getStatusIcon(status)}</div>
+                <div className="flex-1">
+                  <div className={`font-medium text-sm ${
+                    status === "completed" || status === "in-progress"
+                      ? "text-gray-900 dark:text-white"
+                      : "text-gray-500 dark:text-gray-400"
+                  }`}>
+                    {step.stepName}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                    {step.description}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Status Message */}
+        {progressData?.message && (
+          <div className={`p-3 rounded-lg mb-6 text-sm ${
+            progressData.status === "failed"
+              ? "bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200"
+              : progressData.status === "completed"
+              ? "bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-200"
+              : "bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200"
+          }`}>
+            {progressData.message}
+          </div>
+        )}
+
+        {/* Troubleshooting (on failure) */}
+        {progressData?.status === "failed" && progressData?.troubleshooting && (
+          <div className="p-3 rounded-lg mb-6 bg-amber-50 dark:bg-amber-900/20 text-sm">
+            <p className="font-medium text-amber-900 dark:text-amber-200 mb-2">Troubleshooting:</p>
+            <div className="text-amber-800 dark:text-amber-300 space-y-1 text-xs">
+              {typeof progressData.troubleshooting === "object" ? (
+                <div>
+                  {progressData.troubleshooting[provider] && (
+                    <p className="whitespace-pre-wrap">{progressData.troubleshooting[provider]}</p>
+                  )}
+                </div>
+              ) : (
+                <p>{progressData.troubleshooting}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          {progressData?.status !== "in-progress" && (
+            <>
+              <Button variant="outline" onClick={onCancel} className="flex-1">
+                Cancel
+              </Button>
+              {progressData?.status === "completed" && (
+                <Button onClick={onConfirm} className="flex-1 bg-green-600 hover:bg-green-700">
+                  Add Account
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [accounts, setAccounts] = useState<ConfiguredAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [addingProvider, setAddingProvider] = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [showProgressModal, setShowProgressModal] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
-  const [testingConnection, setTestingConnection] = useState(false);
+  const [progressData, setProgressData] = useState<any>(null);
+  const [removingEmail, setRemovingEmail] = useState<string | null>(null);
 
   // Fetch configured accounts on load
   const fetchAccounts = async () => {
@@ -43,22 +168,22 @@ export default function SettingsPage() {
     }
   };
 
-  // Call fetchAccounts on component mount
-  useState(() => {
+  // Fetch accounts on mount
+  useEffect(() => {
     fetchAccounts();
-  });
+  }, []);
 
-  const handleAddEmail = async (provider: string) => {
+  const handleTestConnection = async (provider: string) => {
     if (!formData.email || !formData.password) {
       setMessage({ type: "error", text: "Email and password are required" });
       return;
     }
 
     try {
-      setTestingConnection(true);
-      
-      // Test connection first
-      const testResponse = await fetch("/api/email/test", {
+      setShowProgressModal(true);
+      setProgressData({ step: 1, status: "in-progress" });
+
+      const response = await fetch("/api/email/test-with-progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -68,230 +193,301 @@ export default function SettingsPage() {
         }),
       });
 
-      if (!testResponse.ok) {
-        const error = await testResponse.json();
-        setMessage({ type: "error", text: error.message || "Connection failed" });
-        return;
-      }
+      const data = await response.json();
+      setProgressData({
+        step: data.step,
+        status: data.status,
+        message: data.message,
+        troubleshooting: data.troubleshooting,
+        successData: data.success ? { email: data.email, provider: data.provider } : null,
+      });
+    } catch (error) {
+      setProgressData({
+        step: 3,
+        status: "failed",
+        message: "Network error occurred",
+        troubleshooting: "Check your internet connection and try again",
+      });
+    }
+  };
 
-      // If connection test passes, add the account
+  const handleConfirmAdd = async () => {
+    if (!progressData?.successData) return;
+
+    try {
       const addResponse = await fetch("/api/email/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formData.email,
           password: formData.password,
-          provider,
+          provider: selectedProvider,
         }),
       });
 
       const result = await addResponse.json();
 
       if (result.success) {
-        setMessage({ type: "success", text: `${formData.email} added successfully` });
+        setMessage({ type: "success", text: `${formData.email} added successfully!` });
         setFormData({ email: "", password: "" });
-        setAddingProvider(null);
+        setSelectedProvider(null);
+        setShowProgressModal(false);
+        setProgressData(null);
         fetchAccounts();
       } else {
         setMessage({ type: "error", text: result.error || "Failed to add account" });
       }
     } catch (error) {
       setMessage({ type: "error", text: "Error occurred while adding account" });
-    } finally {
-      setTestingConnection(false);
     }
   };
 
-  const handleRemoveEmail = async (email: string) => {
-    if (!confirm(`Are you sure you want to remove ${email}?`)) return;
+  const handleRemoveAccount = async (email: string) => {
+    if (!confirm(`Remove ${email}?`)) return;
 
     try {
-      const response = await fetch(`/api/email/account/${email}`, {
+      setRemovingEmail(email);
+      const response = await fetch(`/api/email/account/${encodeURIComponent(email)}`, {
         method: "DELETE",
       });
 
-      const result = await response.json();
-      if (result.success) {
+      const data = await response.json();
+      if (data.success) {
         setMessage({ type: "success", text: `${email} removed successfully` });
         fetchAccounts();
       } else {
-        setMessage({ type: "error", text: result.error || "Failed to remove account" });
+        setMessage({ type: "error", text: "Failed to remove account" });
       }
     } catch (error) {
-      setMessage({ type: "error", text: "Error occurred while removing account" });
+      setMessage({ type: "error", text: "Error removing account" });
+    } finally {
+      setRemovingEmail(null);
     }
   };
 
+  const getProvider = (id: string) => PROVIDERS.find((p) => p.id === id);
+
+  const getProvider = (id: string) => PROVIDERS.find((p) => p.id === id);
+
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <nav className="bg-card border-b border-border flex-shrink-0">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Settings className="w-8 h-8 text-primary" />
-            <span className="text-xl font-bold text-foreground">Settings</span>
-          </div>
+      <header className="border-b border-border sticky top-0 bg-card">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <ThemeDropdown />
+            <Link to="/dashboard">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Settings className="w-6 h-6" />
+                Email Settings
+              </h1>
+              <p className="text-sm text-muted-foreground">Manage your email accounts</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
             <SecurityButton />
-            <Button asChild variant="outline" size="sm">
-              <Link to="/dashboard">Dashboard</Link>
-            </Button>
+            <ThemeDropdown />
           </div>
         </div>
-      </nav>
+      </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Message Alert */}
-          {message && (
-            <div
-              className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
-                message.type === "success"
-                  ? "bg-green-50 text-green-800 border border-green-200"
-                  : "bg-red-50 text-red-800 border border-red-200"
-              }`}
-            >
-              {message.type === "success" ? (
-                <CheckCircle className="w-5 h-5" />
-              ) : (
-                <AlertCircle className="w-5 h-5" />
-              )}
-              <p>{message.text}</p>
+      <main className="flex-1 max-w-4xl mx-auto px-6 py-8 w-full">
+        {/* Messages */}
+        {message && (
+          <div className={`p-4 rounded-lg mb-6 flex items-start gap-3 ${
+            message.type === "success"
+              ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+              : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+          }`}>
+            {message.type === "success" ? (
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            )}
+            <p className={`text-sm ${
+              message.type === "success"
+                ? "text-green-800 dark:text-green-200"
+                : "text-red-800 dark:text-red-200"
+            }`}>
+              {message.text}
+            </p>
+          </div>
+        )}
+
+        {/* Configured Accounts */}
+        <section className="mb-8">
+          <h2 className="text-lg font-semibold mb-4">Connected Accounts</h2>
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : accounts.length === 0 ? (
+            <div className="text-center py-8 border-2 border-dashed border-border rounded-lg">
+              <Mail className="w-12 h-12 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-muted-foreground">No email accounts connected yet</p>
+              <p className="text-sm text-muted-foreground">Add your first account below</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {accounts.map((account) => {
+                const provider = getProvider(account.provider);
+                return (
+                  <div key={account.email} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/50">
+                    <div className="flex items-center gap-3">
+                      <div className={`${provider?.color} text-white rounded-full w-10 h-10 flex items-center justify-center text-lg`}>
+                        {provider?.icon}
+                      </div>
+                      <div>
+                        <p className="font-medium">{account.email}</p>
+                        <p className="text-sm text-muted-foreground">{provider?.name}</p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                      onClick={() => handleRemoveAccount(account.email)}
+                      disabled={removingEmail === account.email}
+                    >
+                      {removingEmail === account.email ? (
+                        <Loader className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           )}
+        </section>
 
-          {/* Email Accounts Section */}
-          <div className="bg-card rounded-lg border border-border p-6">
-            <h2 className="text-2xl font-bold text-foreground mb-6">Email Accounts</h2>
+        {/* Add New Account */}
+        <section>
+          <h2 className="text-lg font-semibold mb-4">Add New Account</h2>
 
-            {/* Current Accounts */}
-            {accounts.length > 0 && (
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-foreground mb-4">Configured Accounts</h3>
-                <div className="space-y-3">
-                  {accounts.map((account) => (
-                    <div
-                      key={account.email}
-                      className="flex items-center justify-between p-4 bg-muted rounded-lg border border-border"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Mail className="w-5 h-5 text-primary" />
-                        <div>
-                          <p className="font-medium text-foreground">{account.email}</p>
-                          <p className="text-sm text-muted-foreground capitalize">{account.provider}</p>
-                        </div>
-                        {account.configured && (
-                          <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
-                            Connected
-                          </span>
-                        )}
+          {!selectedProvider ? (
+            <div className="grid md:grid-cols-2 gap-4">
+              {PROVIDERS.map((provider) => (
+                <button
+                  key={provider.id}
+                  onClick={() => setSelectedProvider(provider.id)}
+                  className={`p-4 rounded-lg border-2 transition-all text-left hover:border-primary hover:bg-accent ${
+                    selectedProvider === provider.id
+                      ? "border-primary bg-accent"
+                      : "border-border"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`${provider.color} text-white rounded-full w-12 h-12 flex items-center justify-center text-2xl`}>
+                        {provider.icon}
                       </div>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleRemoveEmail(account.email)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <div>
+                        <p className="font-semibold">{provider.name}</p>
+                        <p className="text-xs text-muted-foreground">Click to add account</p>
+                      </div>
                     </div>
-                  ))}
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-card border border-border rounded-lg p-6">
+              <div className="mb-6">
+                <button
+                  onClick={() => {
+                    setSelectedProvider(null);
+                    setFormData({ email: "", password: "" });
+                  }}
+                  className="flex items-center gap-2 text-sm text-primary hover:underline mb-4"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to providers
+                </button>
+
+                <div className="flex items-center gap-3 mb-6">
+                  <div className={`${getProvider(selectedProvider)?.color} text-white rounded-full w-12 h-12 flex items-center justify-center text-2xl`}>
+                    {getProvider(selectedProvider)?.icon}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      Add {getProvider(selectedProvider)?.name} Account
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedProvider === "gmail"
+                        ? "Use your Gmail address and App Password (16 chars with spaces)"
+                        : "Use your email address and password"}
+                    </p>
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* Add New Account */}
-            <div className="border-t border-border pt-8">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Add New Account</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {PROVIDERS.map((provider) => (
-                  <button
-                    key={provider.id}
-                    onClick={() => setAddingProvider(provider.id)}
-                    className="p-4 rounded-lg border-2 border-border hover:border-primary transition-colors text-left"
-                  >
-                    <div className="text-3xl mb-2">{provider.icon}</div>
-                    <p className="font-semibold text-foreground">{provider.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Add account</p>
-                  </button>
-                ))}
+              {/* Form */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Email Address</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder={selectedProvider === "gmail" ? "your.email@gmail.com" : "your.email@provider.com"}
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    {selectedProvider === "gmail" ? "App Password" : "Password"}
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder={selectedProvider === "gmail" ? "xxxx xxxx xxxx xxxx" : "Enter password"}
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  {selectedProvider === "gmail" && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      📌 Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">myaccount.google.com/apppasswords</a> to generate one
+                    </p>
+                  )}
+                </div>
+
+                <Button
+                  onClick={() => handleTestConnection(selectedProvider)}
+                  className="w-full"
+                  disabled={!formData.email || !formData.password}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Test & Add Account
+                </Button>
               </div>
             </div>
-
-            {/* Add Email Form Modal */}
-            {addingProvider && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-card rounded-lg border border-border p-6 w-full max-w-md">
-                  <h3 className="text-xl font-semibold text-foreground mb-4">
-                    Add {PROVIDERS.find((p) => p.id === addingProvider)?.name} Account
-                  </h3>
-
-                  <div className="space-y-4 mb-6">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">
-                        Email Address
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="your-email@gmail.com"
-                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">
-                        Password or App Password
-                      </label>
-                      <input
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        placeholder="••••••••"
-                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      {addingProvider === "gmail" && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          💡 For Gmail, use an{" "}
-                          <a
-                            href="https://myaccount.google.com/apppasswords"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            App Password
-                          </a>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => handleAddEmail(addingProvider)}
-                      disabled={testingConnection || !formData.email || !formData.password}
-                      className="flex-1"
-                    >
-                      {testingConnection ? "Testing..." : "Add Account"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setAddingProvider(null);
-                        setFormData({ email: "", password: "" });
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+          )}
+        </section>
       </main>
+
+      {/* Progress Modal */}
+      {selectedProvider && (
+        <ProgressModal
+          isOpen={showProgressModal}
+          provider={selectedProvider}
+          email={formData.email}
+          progressData={progressData}
+          onConfirm={handleConfirmAdd}
+          onCancel={() => {
+            setShowProgressModal(false);
+            setProgressData(null);
+          }}
+        />
+      )}
     </div>
   );
 }

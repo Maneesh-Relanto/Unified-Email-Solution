@@ -12,6 +12,7 @@ import {
   addEmailAccount,
   removeEmailAccount,
   testConnection,
+  testConnectionWithProgress,
   clearCache,
   disconnectAll,
 } from "./routes/email";
@@ -44,6 +45,7 @@ export function createServer() {
   app.post("/api/email/add", addEmailAccount);
   app.delete("/api/email/account/:email", removeEmailAccount);
   app.post("/api/email/test", testConnection);
+  app.post("/api/email/test-with-progress", testConnectionWithProgress);
   
   // Utility endpoints
   app.post("/api/email/cache/clear", clearCache);
