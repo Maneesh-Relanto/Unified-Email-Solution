@@ -6,7 +6,7 @@ import {
   Shield,
   BarChart3,
 } from "lucide-react";
-import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { ThemeDropdown } from "@/components/ThemeDropdown";
 
 export default function Index() {
   return (
