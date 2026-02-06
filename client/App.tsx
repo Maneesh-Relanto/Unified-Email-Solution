@@ -32,18 +32,16 @@ const App = () => (
 declare global {
   interface Window {
     __root?: ReturnType<typeof createRoot>;
+    __rootInitialized?: boolean;
   }
 }
 
 const rootElement = document.getElementById("root");
-if (rootElement) {
-  // Only create root if it hasn't been created yet (check by seeing if root has children)
-  if (!window.__root && rootElement.children.length === 0) {
-    window.__root = createRoot(rootElement);
-  }
+if (rootElement && !window.__rootInitialized) {
+  window.__root = createRoot(rootElement);
+  window.__rootInitialized = true;
+}
 
-  // Render the app using the existing or newly created root
-  if (window.__root) {
-    window.__root.render(<App />);
-  }
+if (window.__root) {
+  window.__root.render(<App />);
 }
