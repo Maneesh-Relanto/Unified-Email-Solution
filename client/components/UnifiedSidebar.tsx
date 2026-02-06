@@ -46,7 +46,7 @@ export function UnifiedSidebar({
               : "text-foreground hover:bg-slate-200",
           )}
         >
-          <span className="text-xl">📬</span>
+          <Inbox className="w-5 h-5 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm truncate">All Providers</p>
             <p className="text-xs opacity-70">
@@ -70,7 +70,15 @@ export function UnifiedSidebar({
                 : "text-foreground hover:bg-slate-200",
             )}
           >
-            <span className="text-xl">{provider.icon}</span>
+            <div
+              className={cn(
+                "flex-shrink-0 w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold",
+                provider.color
+              )}
+              title={provider.name}
+            >
+              {provider.abbreviation}
+            </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate">{provider.name}</p>
               <p className="text-xs opacity-70">
