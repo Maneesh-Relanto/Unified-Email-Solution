@@ -69,11 +69,6 @@ export default function UnifiedInbox() {
                 <LayoutGrid className="w-4 h-4" />
               </Link>
             </Button>
-            <Button asChild variant="outline" size="sm" title="Go to home page">
-              <Link to="/">
-                <Home className="w-4 h-4" />
-              </Link>
-            </Button>
             <ThemeDropdown />
             <SecurityButton />
           </div>
