@@ -20,9 +20,9 @@ export default function Index() {
               Email Analyzer
             </span>
           </div>
-          <div className="flex items-center gap-4">
-            <ThemeSwitcher variant="compact" />
-            <Button asChild variant="outline">
+          <div className="flex items-center gap-3">
+            <ThemeDropdown />
+            <Button asChild variant="outline" size="sm">
               <Link to="/dashboard">Dashboard</Link>
             </Button>
           </div>
