@@ -70,20 +70,20 @@ export default function Index() {
         </div>
 
         {/* Call-to-Action Section */}
-        <div className="mt-24 bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl px-8 py-12 text-center text-white">
+        <div className="mt-24 bg-primary rounded-2xl px-8 py-12 text-center text-primary-foreground">
           <h2 className="text-3xl font-bold mb-4">Ready to Unify Your Email?</h2>
           <p className="text-lg opacity-90 mb-8 max-w-xl mx-auto">
             Start managing all your emails in one beautiful dashboard. No setup
             required - view sample data right away.
           </p>
-          <Button asChild size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
+          <Button asChild size="lg" variant="secondary">
             <Link to="/dashboard">Launch Dashboard</Link>
           </Button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-slate-50 mt-20">
+      <footer className="border-t border-border bg-muted mt-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-muted-foreground">
           <p>
             Email Analyzer - Unified Email Management Platform | Built with
