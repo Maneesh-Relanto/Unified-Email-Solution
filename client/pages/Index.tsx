@@ -69,8 +69,8 @@ export default function Index() {
           />
         </div>
 
-        {/* Call-to-Action Section */}
-        <div className="mt-24 bg-primary rounded-2xl px-8 py-12 text-center text-primary-foreground">
+          {/* Call-to-Action Section */}
+        <div className="mt-12 bg-primary rounded-2xl px-8 py-12 text-center text-primary-foreground">
           <h2 className="text-3xl font-bold mb-4">
             Ready to Unify Your Email?
           </h2>
@@ -85,7 +85,7 @@ export default function Index() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-muted mt-20">
+      <footer className="border-t border-border bg-muted flex-shrink-0">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-muted-foreground">
           <p>
             Email Analyzer - Unified Email Management Platform | Built with
