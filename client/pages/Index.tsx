@@ -6,6 +6,7 @@ import {
   Shield,
   BarChart3,
 } from "lucide-react";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 
 export default function Index() {
   return (
