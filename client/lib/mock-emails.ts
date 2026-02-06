@@ -262,6 +262,8 @@ export const mockProviders: Provider[] = [
     id: "rediff",
     name: "Rediff",
     icon: "🔴",
+    color: "bg-red-600",
+    abbreviation: "RD",
     emails: [
       {
         id: "rediff-1",
