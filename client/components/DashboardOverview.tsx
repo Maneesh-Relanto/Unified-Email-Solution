@@ -27,7 +27,7 @@ export function DashboardOverview({
       </div>
 
       {/* Cards Grid */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 max-w-5xl">
           {mockProviders.map((provider) => {
             const unreadCount = provider.emails.filter(

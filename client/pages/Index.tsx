@@ -5,9 +5,9 @@ import { ThemeDropdown } from "@/components/ThemeDropdown";
 
 export default function Index() {
   return (
-    <div className="h-screen bg-background flex flex-col overflow-auto">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Navigation Bar */}
-      <nav className="bg-card border-b border-border sticky top-0 z-10 flex-shrink-0">
+      <nav className="bg-card border-b border-border flex-shrink-0">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Mail className="w-8 h-8 text-primary" />
@@ -25,8 +25,8 @@ export default function Index() {
       </nav>
 
       {/* Hero Section */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-1 overflow-auto">
-        <div className="text-center mb-16">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 overflow-y-auto">
+        <div className="text-center mb-8">
           <h1 className="text-5xl sm:text-6xl font-bold text-foreground mb-6 leading-tight">
             Email Analyzer
             <span className="text-primary"> Unified Email Management</span>
@@ -39,14 +39,11 @@ export default function Index() {
             <Button asChild size="lg">
               <Link to="/dashboard">View Dashboard</Link>
             </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link to="/unified-inbox">Unified Inbox</Link>
-            </Button>
           </div>
         </div>
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mt-20">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
           <FeatureCard
             icon={<Mail className="w-8 h-8" />}
             title="Multi-Provider Support"
@@ -70,7 +67,7 @@ export default function Index() {
         </div>
 
         {/* Call-to-Action Section */}
-        <div className="mt-12 bg-primary rounded-2xl px-8 py-12 text-center text-primary-foreground">
+        <div className="mt-8 mb-4 bg-primary rounded-2xl px-8 py-8 text-center text-primary-foreground">
           <h2 className="text-3xl font-bold mb-4">
             Ready to Unify Your Email?
           </h2>
@@ -86,11 +83,8 @@ export default function Index() {
 
       {/* Footer */}
       <footer className="border-t border-border bg-muted flex-shrink-0">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-muted-foreground">
-          <p>
-            Email Analyzer - Unified Email Management Platform | Built with
-            React & TypeScript
-          </p>
+        <div className="max-w-6xl mx-auto px-4 py-2 text-center text-muted-foreground text-xs">
+          <p>Email Analyzer - Unified Email Management Platform | Built with React & TypeScript</p>
         </div>
       </footer>
     </div>
