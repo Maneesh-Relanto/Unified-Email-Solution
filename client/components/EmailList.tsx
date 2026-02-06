@@ -91,9 +91,22 @@ function EmailListItem({ email, isSelected, onClick }: EmailListItemProps) {
             >
               {email.from.name}
             </p>
-            <span className="text-xs text-muted-foreground flex-shrink-0">
-              {formatDistanceToNow(email.date, { addSuffix: false })}
-            </span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {providerInfo && (
+                <span
+                  className={cn(
+                    "text-xs font-semibold text-white px-2 py-1 rounded",
+                    providerInfo.color
+                  )}
+                  title={providerInfo.name}
+                >
+                  {providerInfo.abbreviation}
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {formatDistanceToNow(email.date, { addSuffix: false })}
+              </span>
+            </div>
           </div>
 
           <p
