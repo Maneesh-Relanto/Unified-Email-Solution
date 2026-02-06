@@ -52,6 +52,14 @@ function EmailListItem({ email, isSelected, onClick }: EmailListItemProps) {
 
   const avatarColor = email.from.avatar || "bg-gray-400";
 
+  // Get provider info if this email has a providerName
+  const providerInfo = email.providerName
+    ? mockProviders.find(
+        (p) =>
+          p.name.toLowerCase() === email.providerName?.toLowerCase(),
+      )
+    : null;
+
   return (
     <button
       onClick={onClick}
