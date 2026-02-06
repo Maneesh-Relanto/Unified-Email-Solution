@@ -37,8 +37,13 @@ declare global {
 
 const rootElement = document.getElementById("root");
 if (rootElement) {
-  if (!window.__root) {
+  // Only create root if it hasn't been created yet (check by seeing if root has children)
+  if (!window.__root && rootElement.children.length === 0) {
     window.__root = createRoot(rootElement);
   }
-  window.__root.render(<App />);
+
+  // Render the app using the existing or newly created root
+  if (window.__root) {
+    window.__root.render(<App />);
+  }
 }
