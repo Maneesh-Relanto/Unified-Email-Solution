@@ -12,7 +12,7 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-export const App = () => (
+const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -29,17 +29,16 @@ export const App = () => (
   </QueryClientProvider>
 );
 
-let root: ReturnType<typeof createRoot> | null = null;
-
-function render() {
-  const rootElement = document.getElementById("root");
-  if (!rootElement) return;
-
-  if (!root) {
-    root = createRoot(rootElement);
+declare global {
+  interface Window {
+    __root?: ReturnType<typeof createRoot>;
   }
-
-  root.render(<App />);
 }
 
-render();
+const rootElement = document.getElementById("root");
+if (rootElement) {
+  if (!window.__root) {
+    window.__root = createRoot(rootElement);
+  }
+  window.__root.render(<App />);
+}
