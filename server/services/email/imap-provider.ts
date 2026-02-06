@@ -26,9 +26,13 @@ export class ImapEmailProvider implements EmailProvider {
       host: credentials.imapConfig.host,
       port: credentials.imapConfig.port,
       tls: true,
-      tlsOptions: { rejectUnauthorized: false }, // For testing; use true in production
+      tlsOptions: { 
+        rejectUnauthorized: false,
+        minVersion: 'TLSv1.2'
+      },
       connTimeout: 10000,
       authTimeout: 5000,
+      debug: (str) => console.log('[IMAP]', str), // Enable debug logging
     });
 
     this.setupListeners();
@@ -46,15 +50,35 @@ export class ImapEmailProvider implements EmailProvider {
 
   async authenticate(): Promise<boolean> {
     return new Promise((resolve, reject) => {
-      this.imap.openBox('INBOX', false, (err, box) => {
-        if (err) {
-          console.error('Authentication failed:', err);
+      try {
+        this.imap.openBox('INBOX', false, (err, box) => {
+          if (err) {
+            console.error('Authentication/Connection failed:', err);
+            this.imap.end();
+            resolve(false);
+          } else {
+            this.authenticated = true;
+            resolve(true);
+          }
+        });
+
+        // Handle connection errors
+        this.imap.on('error', (err) => {
+          console.error('IMAP connection error during auth:', err);
           resolve(false);
-        } else {
-          this.authenticated = true;
-          resolve(true);
-        }
-      });
+        });
+
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          if (!this.authenticated) {
+            this.imap.end();
+            resolve(false);
+          }
+        }, 10000);
+      } catch (error) {
+        console.error('Authentication error:', error);
+        resolve(false);
+      }
     });
   }
 
@@ -190,9 +214,18 @@ export class ImapEmailProvider implements EmailProvider {
 
   async disconnect(): Promise<void> {
     return new Promise((resolve) => {
-      this.imap.end();
-      this.authenticated = false;
-      resolve();
+      try {
+        if (this.imap) {
+          this.imap.end();
+          this.imap.destroy();
+        }
+        this.authenticated = false;
+        resolve();
+      } catch (error) {
+        console.error('Error during disconnect:', error);
+        this.authenticated = false;
+        resolve();
+      }
     });
   }
 

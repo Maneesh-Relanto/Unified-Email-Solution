@@ -328,6 +328,7 @@ export async function testConnection(req: Request, res: Response) {
     }
 
     const { email, password, provider } = validation.data;
+    console.log(`Testing connection for ${email} (${provider})`);
 
     // Get IMAP config
     const imapConfig = getImapConfigForProvider(provider);
@@ -352,27 +353,48 @@ export async function testConnection(req: Request, res: Response) {
       },
     });
 
+    console.log(`Attempting to authenticate ${email}...`);
     const authenticated = await testProvider.authenticate();
-    await testProvider.disconnect();
+    
+    // Always try to disconnect properly
+    try {
+      await testProvider.disconnect();
+    } catch (disconnectError) {
+      console.error('Error disconnecting after test:', disconnectError);
+    }
 
     if (authenticated) {
+      console.log(`✓ Successfully authenticated ${email}`);
       res.json({
         success: true,
         message: 'Connection successful',
         connected: true,
       });
     } else {
+      console.error(`✗ Authentication failed for ${email}`);
       res.status(401).json({
         error: 'Authentication failed',
-        message: 'Invalid email or password',
+        message: `Failed to authenticate ${email}. Please check your email and app password.
+        
+For Gmail:
+- Use an App Password (not your regular password)
+- Enable 2-Step Verification first
+- Generate password at: https://myaccount.google.com/apppasswords`,
         connected: false,
       });
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Connection test error:', error);
     res.status(500).json({
       error: 'Connection test failed',
-      message,
+      message: `${message}
+
+Troubleshooting:
+- Gmail: Use App Password from myaccount.google.com/apppasswords
+- Yahoo: Use generated App Password
+- Outlook: Use your Microsoft password
+- Make sure your email address is correct`,
       connected: false,
     });
   }
