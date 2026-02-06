@@ -12,17 +12,20 @@ export default function Index() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Navigation Bar */}
-      <nav className="bg-white border-b border-border sticky top-0 z-10">
+      <nav className="bg-card border-b border-border sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Mail className="w-8 h-8 text-blue-600" />
+            <Mail className="w-8 h-8 text-primary" />
             <span className="text-xl font-bold text-foreground">
               Email Analyzer
             </span>
           </div>
-          <Button asChild variant="outline">
-            <Link to="/dashboard">Dashboard</Link>
-          </Button>
+          <div className="flex items-center gap-4">
+            <ThemeSwitcher variant="compact" />
+            <Button asChild variant="outline">
+              <Link to="/dashboard">Dashboard</Link>
+            </Button>
+          </div>
         </div>
       </nav>
 
