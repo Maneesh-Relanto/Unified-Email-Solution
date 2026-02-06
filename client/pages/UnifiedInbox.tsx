@@ -6,7 +6,7 @@ import { EmailList } from "@/components/EmailList";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
 import { Button } from "@/components/ui/button";
-import { Home } from "lucide-react";
+import { Home, LayoutGrid } from "lucide-react";
 
 export default function UnifiedInbox() {
   const [selectedProviderId, setSelectedProviderId] = useState<
