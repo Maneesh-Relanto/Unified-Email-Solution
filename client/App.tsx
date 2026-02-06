@@ -10,6 +10,8 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "@/hooks/use-theme";
+import { SecurityProvider } from "@/hooks/use-security";
+import { SecurityOverlay } from "@/components/SecurityOverlay";
 
 const queryClient = new QueryClient();
 
