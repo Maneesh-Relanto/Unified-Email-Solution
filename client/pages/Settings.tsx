@@ -454,8 +454,20 @@ export default function SettingsPage() {
                     className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   {selectedProvider === "gmail" && (
+                    <div className="mt-3 space-y-2">
+                      <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                        <p className="text-xs text-blue-900 dark:text-blue-200">
+                          <strong>💡 Tip:</strong> Paste the password <strong>AS IS with spaces</strong> (xxxx xxxx xxxx xxxx). We automatically remove them.
+                        </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        📌 Don't have an App Password? Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">myaccount.google.com/apppasswords</a>
+                      </p>
+                    </div>
+                  )}
+                  {selectedProvider !== "gmail" && (
                     <p className="text-xs text-muted-foreground mt-2">
-                      📌 Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">myaccount.google.com/apppasswords</a> to generate one
+                      Enter your account password
                     </p>
                   )}
                 </div>
