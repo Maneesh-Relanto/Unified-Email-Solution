@@ -116,38 +116,28 @@
     --sidebar-ring: 25 95% 53%;
   }
 
-  /* THEME 4: COLD (Light Blue, Cyan) */
-  .theme-cold {
+  /* COLD THEME (Light Blue, Cyan) */
+  [data-theme="cold"] {
     --background: 200 100% 97%;
     --foreground: 200 50% 15%;
-
     --card: 0 0% 100%;
     --card-foreground: 200 50% 15%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 200 50% 15%;
-
     --primary: 190 100% 50%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 180 90% 45%;
     --secondary-foreground: 0 0% 100%;
-
     --muted: 200 60% 85%;
     --muted-foreground: 200 30% 35%;
-
     --accent: 170 100% 44%;
     --accent-foreground: 0 0% 100%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 200 70% 80%;
     --input: 200 60% 90%;
     --ring: 190 100% 50%;
-
     --radius: 0.5rem;
-
     --sidebar-background: 200 60% 20%;
     --sidebar-foreground: 200 100% 97%;
     --sidebar-primary: 190 100% 50%;
@@ -158,38 +148,28 @@
     --sidebar-ring: 190 100% 50%;
   }
 
-  /* THEME 5: TENDER PINK (Soft Pink, Rose) */
-  .theme-tender-pink {
+  /* TENDER PINK THEME (Soft Pink, Rose) */
+  [data-theme="tender-pink"] {
     --background: 350 100% 97%;
     --foreground: 340 60% 20%;
-
     --card: 0 0% 100%;
     --card-foreground: 340 60% 20%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 340 60% 20%;
-
     --primary: 330 80% 55%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 350 100% 60%;
     --secondary-foreground: 0 0% 100%;
-
     --muted: 350 70% 88%;
     --muted-foreground: 340 30% 40%;
-
     --accent: 280 80% 60%;
     --accent-foreground: 0 0% 100%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 350 70% 85%;
     --input: 350 80% 92%;
     --ring: 330 80% 55%;
-
     --radius: 0.5rem;
-
     --sidebar-background: 340 60% 25%;
     --sidebar-foreground: 350 100% 97%;
     --sidebar-primary: 330 80% 55%;
