@@ -11,16 +11,15 @@ export function SecurityButton() {
       size="sm"
       onClick={toggleSecurityMode}
       title="Toggle security mode - hides content from view"
-      className={`gap-2 ${isSecurityModeActive ? "ring-2 ring-green-500" : ""}`}
+      className={`${isSecurityModeActive ? "ring-2 ring-yellow-500" : ""}`}
     >
       <Lightbulb
         className={`w-4 h-4 transition-all ${
           isSecurityModeActive
-            ? "fill-green-500 text-green-500 animate-pulse"
+            ? "fill-yellow-400 text-yellow-400 animate-pulse"
             : "text-yellow-500"
         }`}
       />
-      <span className="hidden sm:inline text-xs">Secure</span>
     </Button>
   );
 }
