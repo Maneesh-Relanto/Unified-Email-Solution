@@ -17,14 +17,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
+  // Apply theme whenever it changes
+  useEffect(() => {
+    const html = document.documentElement;
+
+    // Remove all theme classes
+    THEMES.forEach((t) => {
+      html.classList.remove(`theme-${t}`);
+    });
+
+    // Add the selected theme class (always add it for proper CSS cascade)
+    html.classList.add(`theme-${theme}`);
+  }, [theme]);
+
   // Load theme from localStorage on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem(STORAGE_KEY) as Theme | null;
     if (savedTheme && THEMES.includes(savedTheme)) {
       setThemeState(savedTheme);
-      applyTheme(savedTheme);
     } else {
-      applyTheme("light");
+      setThemeState("light");
     }
     setMounted(true);
   }, []);
@@ -33,21 +45,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (THEMES.includes(newTheme)) {
       setThemeState(newTheme);
       localStorage.setItem(STORAGE_KEY, newTheme);
-      applyTheme(newTheme);
-    }
-  };
-
-  const applyTheme = (themeName: Theme) => {
-    const html = document.documentElement;
-    
-    // Remove all theme classes
-    THEMES.forEach((t) => {
-      html.classList.remove(`theme-${t}`);
-    });
-    
-    // Add the selected theme class
-    if (themeName !== "light") {
-      html.classList.add(`theme-${themeName}`);
     }
   };
 
