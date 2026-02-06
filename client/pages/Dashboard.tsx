@@ -13,7 +13,7 @@ export default function Dashboard() {
   const [selectedEmailId, setSelectedEmailId] = useState<string | undefined>();
 
   const selectedProvider = mockProviders.find(
-    (p) => p.id === selectedProviderId
+    (p) => p.id === selectedProviderId,
   );
 
   return (

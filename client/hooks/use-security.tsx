@@ -6,7 +6,7 @@ interface SecurityContextType {
 }
 
 const SecurityContext = createContext<SecurityContextType | undefined>(
-  undefined
+  undefined,
 );
 
 export function SecurityProvider({ children }: { children: React.ReactNode }) {
@@ -17,7 +17,9 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <SecurityContext.Provider value={{ isSecurityModeActive, toggleSecurityMode }}>
+    <SecurityContext.Provider
+      value={{ isSecurityModeActive, toggleSecurityMode }}
+    >
       {children}
     </SecurityContext.Provider>
   );
