@@ -38,7 +38,15 @@ export default function Dashboard() {
               {selectedProvider?.emails.length !== 1 ? "s" : ""}
             </p>
           </div>
-          <ThemeDropdown />
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm" title="Go to home page">
+              <Link to="/">
+                <Home className="w-4 h-4" />
+              </Link>
+            </Button>
+            <ThemeDropdown />
+            <SecurityButton />
+          </div>
         </div>
 
         {/* Email List */}
