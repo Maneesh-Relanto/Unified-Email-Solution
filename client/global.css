@@ -203,14 +203,15 @@
   }
 
   /* Smooth page transitions */
-  main {
-    animation: fadeIn 0.2s ease-out;
-    min-height: 100vh;
+  [data-page-wrapper] {
+    animation: pageTransition 0.3s ease-out;
+    height: 100%;
+    width: 100%;
   }
 
-  @keyframes fadeIn {
+  @keyframes pageTransition {
     from {
-      opacity: 0.98;
+      opacity: 0;
     }
     to {
       opacity: 1;
