@@ -1,14 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Provider } from "@/lib/mock-emails";
-import { Mail, Inbox } from "lucide-react";
-
-// Provider icon mapping
-const providerIcons: Record<string, React.ReactNode> = {
-  gmail: "📧",
-  yahoo: "🔷",
-  outlook: "📬",
-  rediff: "🔴",
-};
+import { Inbox } from "lucide-react";
 
 interface UnifiedSidebarProps {
   providers: Provider[];
