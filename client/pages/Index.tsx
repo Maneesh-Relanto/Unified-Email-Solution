@@ -40,9 +40,14 @@ export default function Index() {
             Monitor and manage emails from Gmail, Yahoo, Outlook, and Rediff in
             one place. Stay organized with our modern, unified email interface.
           </p>
-          <Button asChild size="lg">
-            <Link to="/dashboard">Go to Dashboard</Link>
-          </Button>
+          <div className="flex items-center justify-center gap-4">
+            <Button asChild size="lg">
+              <Link to="/dashboard">View Dashboard</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link to="/unified-inbox">Unified Inbox</Link>
+            </Button>
+          </div>
         </div>
 
         {/* Features Grid */}
