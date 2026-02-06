@@ -40,6 +40,8 @@ export const mockProviders: Provider[] = [
     id: "gmail",
     name: "Gmail",
     icon: "📧",
+    color: "bg-red-500",
+    abbreviation: "GM",
     emails: [
       {
         id: "gmail-1",
