@@ -15,6 +15,8 @@ export interface Provider {
   id: string;
   name: string;
   icon: string;
+  color: string;
+  abbreviation: string;
   emails: Email[];
 }
 
