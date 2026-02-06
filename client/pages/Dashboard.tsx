@@ -7,7 +7,7 @@ import { DashboardOverview } from "@/components/DashboardOverview";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
 import { Button } from "@/components/ui/button";
-import { Home, LayoutGrid, Inbox } from "lucide-react";
+import { Home, LayoutGrid, Inbox, Settings } from "lucide-react";
 
 export default function Dashboard() {
   const [selectedProviderId, setSelectedProviderId] = useState<
@@ -80,6 +80,11 @@ export default function Dashboard() {
                 <LayoutGrid className="w-4 h-4" />
               </Button>
             )}
+            <Button asChild variant="outline" size="sm" title="Settings">
+              <Link to="/settings">
+                <Settings className="w-4 h-4" />
+              </Link>
+            </Button>
             <Button asChild variant="outline" size="sm" title="Go to home page">
               <Link to="/">
                 <Home className="w-4 h-4" />

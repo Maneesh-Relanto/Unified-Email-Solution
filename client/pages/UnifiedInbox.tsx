@@ -6,7 +6,7 @@ import { EmailList } from "@/components/EmailList";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid } from "lucide-react";
+import { LayoutGrid, Settings } from "lucide-react";
 
 export default function UnifiedInbox() {
   const [selectedProviderId, setSelectedProviderId] = useState<string | "all">(
@@ -72,6 +72,16 @@ export default function UnifiedInbox() {
             >
               <Link to="/dashboard">
                 <LayoutGrid className="w-4 h-4" />
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              title="Settings"
+            >
+              <Link to="/settings">
+                <Settings className="w-4 h-4" />
               </Link>
             </Button>
             <ThemeDropdown />

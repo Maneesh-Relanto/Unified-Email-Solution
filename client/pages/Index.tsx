@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Mail, Zap, Shield, BarChart3 } from "lucide-react";
+import { Mail, Zap, Shield, BarChart3, Settings } from "lucide-react";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 
 export default function Index() {
@@ -17,6 +17,11 @@ export default function Index() {
           </div>
           <div className="flex items-center gap-3">
             <ThemeDropdown />
+            <Button asChild variant="ghost" size="icon">
+              <Link to="/settings" title="Settings">
+                <Settings className="w-4 h-4" />
+              </Link>
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link to="/dashboard">Dashboard</Link>
             </Button>
