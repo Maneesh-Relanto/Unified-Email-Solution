@@ -259,6 +259,7 @@ export class ImapEmailProvider implements EmailProvider {
 
     return new Promise((resolve, reject) => {
       const limit = options?.limit || 20;
+      const skip = options?.skip || 0;
       const unreadOnly = options?.unreadOnly || false;
       const folder = options?.folder || 'INBOX';
 
@@ -281,8 +282,12 @@ export class ImapEmailProvider implements EmailProvider {
             return;
           }
 
-          // Fetch most recent emails (limit to specified amount)
-          const toFetch = results.slice(-limit).reverse();
+          // Fetch most recent emails (with limit and skip)
+          // Results array has newest emails at the end
+          // To skip N and get limit M: slice(-(limit + skip), skip > 0 ? -skip : undefined)
+          const startIdx = -(limit + skip);
+          const endIdx = skip > 0 ? -skip : undefined;
+          const toFetch = results.slice(startIdx, endIdx).reverse();
           const emails: ParsedEmail[] = [];
           let processed = 0;
 

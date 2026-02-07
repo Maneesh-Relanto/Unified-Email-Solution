@@ -233,11 +233,12 @@ export async function getOAuthEmails(req: Request, res: Response) {
 /**
  * Get emails from all OAuth-connected accounts
  * GET /api/email/oauth/all
- * Query params: ?limit=20&unreadOnly=false
+ * Query params: ?limit=20&skip=0&unreadOnly=false
  */
 export async function getAllOAuthEmails(req: Request, res: Response) {
   try {
     const limit = Number.parseInt(req.query.limit as string) || 20;
+    const skip = Number.parseInt(req.query.skip as string) || 0;
     const unreadOnly = req.query.unreadOnly === 'true';
 
     // Get all OAuth credentials
@@ -292,6 +293,7 @@ export async function getAllOAuthEmails(req: Request, res: Response) {
 
         const emails = await oauthProvider.fetchEmails({
           limit,
+          skip,
           unreadOnly,
         });
 
@@ -301,12 +303,16 @@ export async function getAllOAuthEmails(req: Request, res: Response) {
       }
     }
 
+    // Sort by date descending
+    allEmails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
     res.json({
       success: true,
       count: allEmails.length,
       accounts: allCredentials.length,
       errors: errors.length > 0 ? errors : undefined,
       emails: allEmails,
+      hasMore: allEmails.length === limit, // If we got full limit, there might be more
     });
   } catch (error) {
     console.error('[OAuth Email Fetch Error]', error);

@@ -93,11 +93,15 @@ export default function UnifiedInbox() {
   const [oauthEmails, setOauthEmails] = useState<OAuthEmail[]>([]);
   const [oauthAccounts, setOauthAccounts] = useState<OAuthAccount[]>([]);
   const [loadingEmails, setLoadingEmails] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
-  const emailsPerPage = 30;
+  const emailsPerPage = 20;
+  const INITIAL_LOAD = 20;
+  const LOAD_MORE_BATCH = 30;
   
   // Status bar hook
   const statusBar = useStatusBar();
@@ -181,14 +185,23 @@ export default function UnifiedInbox() {
     );
   };
 
-  const fetchAllOAuthEmails = async () => {
-    if (loadingEmails) return; // Prevent duplicate calls
+  const fetchAllOAuthEmails = async (isLoadMore: boolean = false) => {
+    if (loadingEmails || loadingMore) return; // Prevent duplicate calls
     
-    setLoadingEmails(true);
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoadingEmails(true);
+      setOauthEmails([]); // Clear existing emails on fresh load
+      setHasMore(true);
+    }
     setError(null);
     
     const startTime = Date.now();
     let messageStep = 0;
+    
+    const skip = isLoadMore ? oauthEmails.length : 0;
+    const limit = isLoadMore ? LOAD_MORE_BATCH : INITIAL_LOAD;
     
     // Show initial message immediately
     const loadingId = statusBar.showLoading('🔌 Contacting server... (0s)');
@@ -209,8 +222,8 @@ export default function UnifiedInbox() {
     }, 1500);
     
     try {
-      console.log('[UnifiedInbox] Fetching all OAuth emails...');
-      const response = await fetch("/api/email/oauth/all?limit=200");
+      console.log(`[UnifiedInbox] Fetching OAuth emails (skip: ${skip}, limit: ${limit})...`);
+      const response = await fetch(`/api/email/oauth/all?limit=${limit}&skip=${skip}`);
       
       // Clear interval
       clearInterval(updateInterval);
@@ -222,7 +235,7 @@ export default function UnifiedInbox() {
       const data = await response.json();
       console.log('[UnifiedInbox] All emails response:', data);
       console.log('[UnifiedInbox] Sample email from field:', data.emails?.[0]?.from);
-      console.log(`[UnifiedInbox] Total emails fetched: ${data.emails?.length || 0}`);
+      console.log(`[UnifiedInbox] Emails fetched: ${data.emails?.length || 0}, hasMore: ${data.hasMore}`);
 
       if (data.emails) {
         const convertedEmails: OAuthEmail[] = data.emails.map((email: any) => {
@@ -241,15 +254,31 @@ export default function UnifiedInbox() {
         });
         console.log('[UnifiedInbox] Converted emails:', convertedEmails);
         console.log('[UnifiedInbox] Provider names:', convertedEmails.map(e => e.providerName));
-        setOauthEmails(convertedEmails);
+        
+        // Append or replace emails based on load type
+        if (isLoadMore) {
+          setOauthEmails(prev => [...prev, ...convertedEmails]);
+        } else {
+          setOauthEmails(convertedEmails);
+        }
+        
+        // Update hasMore flag
+        setHasMore(data.hasMore === true && convertedEmails.length === limit);
         
         // Update provider email counts by provider type
-        updateProviderCounts(convertedEmails);
+        updateProviderCounts(isLoadMore ? [...oauthEmails, ...convertedEmails] : convertedEmails);
         
         statusBar.removeMessage(loadingId);
-        statusBar.showSuccess(`Loaded ${convertedEmails.length} emails from all accounts`);
+        if (isLoadMore) {
+          statusBar.showSuccess(`Loaded ${convertedEmails.length} more emails`);
+        } else {
+          statusBar.showSuccess(`Loaded ${convertedEmails.length} emails${data.hasMore ? ' (more available)' : ''}`);
+        }
       } else {
-        setOauthEmails([]);
+        if (!isLoadMore) {
+          setOauthEmails([]);
+        }
+        setHasMore(false);
         statusBar.removeMessage(loadingId);
         statusBar.showInfo('No emails found');
       }
@@ -260,11 +289,14 @@ export default function UnifiedInbox() {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch emails';
       console.error('[UnifiedInbox] Failed to fetch all OAuth emails:', errorMessage);
       setError(errorMessage);
-      setOauthEmails([]);
+      if (!isLoadMore) {
+        setOauthEmails([]);
+      }
       statusBar.removeMessage(loadingId);
       statusBar.showError(errorMessage);
     } finally {
       setLoadingEmails(false);
+      setLoadingMore(false);
     }
   };
 
@@ -368,6 +400,17 @@ export default function UnifiedInbox() {
     }
   };
 
+  // Load more emails (wrapper for clarity)
+  const loadMoreEmails = () => {
+    if (selectedProviderId === "all") {
+      fetchAllOAuthEmails(true);
+    } else {
+      // For single provider, we'll need to implement similar logic
+      // For now, just reload all
+      fetchOAuthEmails(selectedProviderId);
+    }
+  };
+
   // Convert OAuth emails to UI format
   const emails: Email[] = oauthEmails.map(email => ({
     id: email.id,
@@ -385,10 +428,11 @@ export default function UnifiedInbox() {
   );
 
   // Pagination
+  const shouldShowPagination = sortedEmails.length > emailsPerPage;
   const totalPages = Math.ceil(sortedEmails.length / emailsPerPage);
   const startIndex = (currentPage - 1) * emailsPerPage;
   const endIndex = startIndex + emailsPerPage;
-  const paginatedEmails = sortedEmails.slice(startIndex, endIndex);
+  const paginatedEmails = shouldShowPagination ? sortedEmails.slice(startIndex, endIndex) : sortedEmails;
 
   const unreadCount = sortedEmails.filter((email) => !email.read).length;
   
@@ -414,14 +458,15 @@ export default function UnifiedInbox() {
               {selectedProviderName}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              {sortedEmails.length} email{sortedEmails.length !== 1 ? "s" : ""} (
+              Showing {sortedEmails.length} email{sortedEmails.length !== 1 ? "s" : ""} (
               {unreadCount} unread)
-              {totalPages > 1 && ` • Page ${currentPage} of ${totalPages}`}
-              {loadingEmails && " • Loading..."}
+              {hasMore && " • More available"}
+              {shouldShowPagination && ` • Page ${currentPage} of ${totalPages}`}
+              {(loadingEmails || loadingMore) && " • Loading..."}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {loadingEmails && (
+            {(loadingEmails || loadingMore) && (
               <Loader className="w-4 h-4 animate-spin text-primary" />
             )}
             <Button
@@ -458,7 +503,7 @@ export default function UnifiedInbox() {
               onDismiss={() => setError(null)}
               onRetry={() => {
                 if (selectedProviderId === "all") {
-                  fetchAllOAuthEmails();
+                  fetchAllOAuthEmails(false);
                 } else {
                   fetchOAuthEmails(selectedProviderId);
                 }
@@ -497,8 +542,34 @@ export default function UnifiedInbox() {
                 />
               </div>
               
+              {/* Load More Button */}
+              {hasMore && !loadingEmails && (
+                <div className="border-t border-border bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 px-6 py-4">
+                  <Button
+                    onClick={loadMoreEmails}
+                    disabled={loadingMore}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 text-base shadow-lg hover:shadow-xl transition-all"
+                    size="lg"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Loader className="w-5 h-5 animate-spin mr-2" />
+                        Loading more emails...
+                      </>
+                    ) : (
+                      <>
+                        📨 Load More Emails ({LOAD_MORE_BATCH} more)
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-center text-xs text-muted-foreground mt-2">
+                    {sortedEmails.length} emails loaded so far
+                  </p>
+                </div>
+              )}
+              
               {/* Pagination Controls */}
-              {totalPages > 1 && (
+              {shouldShowPagination && (
                 <div className="border-t border-border bg-card px-6 py-3 flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
                     Showing {startIndex + 1}-{Math.min(endIndex, sortedEmails.length)} of {sortedEmails.length}

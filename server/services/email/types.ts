@@ -60,6 +60,7 @@ export interface ParsedEmail {
 
 export interface FetchEmailsOptions {
   limit?: number;
+  skip?: number;
   unreadOnly?: boolean;
   folder?: string;
   since?: Date;
