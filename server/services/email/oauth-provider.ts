@@ -75,7 +75,7 @@ export class OAuthEmailProvider implements EmailProvider {
     try {
       await this.ensureValidToken();
 
-      if (this.provider === 'gmail') {
+      if (this.provider === 'gmail' || this.provider === 'google') {
         return await this.fetchGmailEmails(options);
       } else {
         return await this.fetchOutlookEmails(options);
@@ -90,7 +90,7 @@ export class OAuthEmailProvider implements EmailProvider {
     try {
       await this.ensureValidToken();
 
-      if (this.provider === 'gmail') {
+      if (this.provider === 'gmail' || this.provider === 'google') {
         const action = read ? 'removeLabels' : 'addLabels';
         await this.apiClient.post(
           `https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}/${action}`,
@@ -134,7 +134,7 @@ export class OAuthEmailProvider implements EmailProvider {
   getProviderInfo() {
     return {
       type: 'oauth' as const,
-      displayName: this.provider === 'gmail' ? 'Gmail (OAuth)' : 'Outlook (OAuth)',
+      displayName: this.provider === 'gmail' || this.provider === 'google' ? 'Gmail (OAuth)' : 'Outlook (OAuth)',
       email: this.email,
     };
   }
@@ -161,7 +161,7 @@ export class OAuthEmailProvider implements EmailProvider {
     try {
       let newToken;
 
-      if (this.provider === 'gmail') {
+      if (this.provider === 'gmail' || this.provider === 'google') {
         newToken = await googleOAuthService.refreshToken(this.refreshToken);
       } else {
         newToken = await microsoftOAuthService.refreshToken(this.refreshToken);
@@ -193,7 +193,7 @@ export class OAuthEmailProvider implements EmailProvider {
 
   private async fetchUserProfile(): Promise<{ email: string; name: string }> {
     try {
-      if (this.provider === 'gmail') {
+      if (this.provider === 'gmail' || this.provider === 'google') {
         console.log('[OAuth gmail] Fetching user profile from Gmail API...');
         console.log(`[OAuth gmail] Authorization header: Bearer ${this.accessToken.substring(0, 20)}...`);
         
