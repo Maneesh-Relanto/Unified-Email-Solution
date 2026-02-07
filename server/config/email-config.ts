@@ -157,10 +157,89 @@ class EmailCredentialStore {
   clear(): void {
     this.credentials.clear();
   }
+
+  // ===== OAUTH CREDENTIAL METHODS =====
+
+  private readonly oauthCredentials: Map<string, any> = new Map();
+
+  /**
+   * Store OAuth credential
+   * @param key Unique key in format: `provider_email` (e.g., `google_user@gmail.com`)
+   * @param credential OAuth credential with encrypted token
+   */
+  setOAuthCredential(key: string, credential: any): void {
+    this.oauthCredentials.set(key, credential);
+    console.log(`✓ Stored OAuth credential: ${key}`);
+  }
+
+  /**
+   * Get OAuth credential
+   * @param key Unique key in format: `provider_email`
+   */
+  getOAuthCredential(key: string): any | undefined {
+    return this.oauthCredentials.get(key);
+  }
+
+  /**
+   * Get all OAuth credentials
+   */
+  getAllOAuthCredentials(): any[] {
+    return Array.from(this.oauthCredentials.values());
+  }
+
+  /**
+   * Get OAuth credentials by provider
+   * @param provider 'google' or 'microsoft'
+   */
+  getOAuthCredentialsByProvider(provider: 'google' | 'microsoft'): any[] {
+    return Array.from(this.oauthCredentials.values()).filter(
+      cred => cred.provider === provider
+    );
+  }
+
+  /**
+   * Remove OAuth credential
+   * @param key Unique key in format: `provider_email`
+   */
+  removeOAuthCredential(key: string): boolean {
+    const deleted = this.oauthCredentials.delete(key);
+    if (deleted) {
+      console.log(`✓ Removed OAuth credential: ${key}`);
+    }
+    return deleted;
+  }
+
+  /**
+   * Check if OAuth credential exists
+   * @param key Unique key in format: `provider_email`
+   */
+  hasOAuthCredential(key: string): boolean {
+    return this.oauthCredentials.has(key);
+  }
+
+  /**
+   * List all OAuth accounts
+   */
+  listOAuthAccounts(): Array<{
+    id: string;
+    provider: string;
+    email: string;
+    expiresAt: number;
+  }> {
+    return Array.from(this.oauthCredentials.entries()).map(([id, cred]) => ({
+      id,
+      provider: cred.provider,
+      email: cred.email,
+      expiresAt: cred.oauthToken.expiresAt,
+    }));
+  }
 }
 
 // Export singleton instance
 export const emailCredentialStore = new EmailCredentialStore();
+
+// Export class for type definitions
+export { EmailCredentialStore };
 
 /**
  * Load credentials from environment variables

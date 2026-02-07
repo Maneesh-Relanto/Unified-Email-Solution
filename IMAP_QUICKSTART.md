@@ -280,10 +280,12 @@ server/
 
 This architecture easily supports:
 - ✅ Any IMAP server (with host/port)
-- 🔜 OAuth2 (Google, Yahoo, Outlook)
+- ✅ OAuth2 (Google, Microsoft) - See [docs/OAUTH_IMPLEMENTATION.md](./docs/OAUTH_IMPLEMENTATION.md)
 - 🔜 Microsoft Graph API (Outlook/Office365)
 - 🔜 Apple Mail (iCloud)
 - 🔜 ProtonMail API
 - 🔜 Custom/enterprise email systems
+
+**OAuth Integration**: Google and Microsoft OAuth are now fully implemented! Users can sign in with Google/Outlook and emails are fetched securely via OAuth tokens instead of passwords.
 
 Want to add another? Create a new provider class and register it in the factory!

@@ -21,11 +21,15 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@azure/identity": "^4.13.0",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "axios": "^1.13.4",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
-    "zod": "^3.25.76",
+    "google-auth-library": "^10.5.0",
     "imap": "^0.8.19",
-    "mailparser": "^3.6.5"
+    "mailparser": "^3.6.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@hookform/resolvers": "^5.2.1",

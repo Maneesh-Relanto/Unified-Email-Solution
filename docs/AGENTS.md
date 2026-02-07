@@ -15,23 +15,57 @@ While the starter comes with a express server, only create endpoint when strictl
 ## Project Structure
 
 ```
-client/                   # React SPA frontend
-├── pages/                # Route components (Index.tsx = home)
-├── components/ui/        # Pre-built UI component library
-├── App.tsx                # App entry point and with SPA routing setup
-└── global.css            # TailwindCSS 3 theming and global styles
+client/                                  # React SPA frontend
+├── pages/                               # Route components (Index.tsx = home)
+├── components/ui/                       # Pre-built UI component library
+├── App.tsx                              # App entry point and with SPA routing setup
+└── global.css                           # TailwindCSS 3 theming and global styles
 
-server/                   # Express API backend
-├── index.ts              # Main server setup (express config + routes)
-└── routes/               # API handlers
+server/                                  # Express API backend
+├── index.ts                             # Main server setup (express config + routes)
+├── routes/
+│   ├── auth.ts                          # OAuth2 authentication (6 endpoints)
+│   ├── email.ts                         # Email fetching endpoints
+│   └── demo.ts                          # Demo endpoints
+├── services/
+│   ├── email-service.ts                 # Email fetching service
+│   ├── oauth/
+│   │   ├── types.ts                     # OAuth2 type definitions
+│   │   ├── oauth-utils.ts               # PKCE, state, URL builders
+│   │   ├── google-oauth.ts              # Google OAuth implementation
+│   │   └── microsoft-oauth.ts           # Microsoft OAuth implementation
+│   └── email/
+│       ├── types.ts                     # Email provider types
+│       ├── imap-provider.ts             # IMAP email implementation
+│       ├── oauth-provider.ts            # OAuth email provider (Gmail/Outlook APIs)
+│       └── index.ts                     # Provider factory
+├── config/
+│   └── email-config.ts                  # Credential storage (IMAP + OAuth)
+└── utils/
+    └── crypto.ts                        # AES-256-CBC encryption
 
-shared/                   # Types used by both client & server
-└── api.ts                # Example of how to share api interfaces
+shared/                                  # Types used by both client & server
+└── api.ts                               # Shared API interfaces
 ```
 
 ## Key Features
 
-## SPA Routing System
+### OAuth2 Authentication
+- ✅ **Google OAuth** - Gmail account integration
+- ✅ **Microsoft OAuth** - Outlook account integration
+- ✅ **PKCE Security** - S256 authorization code flow
+- ✅ **Token Encryption** - AES-256-CBC at-rest token storage
+- ✅ **Token Refresh** - Automatic token rotation
+- ✅ **CSRF Protection** - State token validation
+
+### Email Service
+- ✅ **Multi-Provider** - Gmail and Outlook support
+- ✅ **OAuth Integration** - Secure token-based access
+- ✅ **Email Fetching** - Read emails from providers
+- ✅ **Caching** - Optimized email caching with TTL
+- ✅ **Unified View** - Combine emails from multiple accounts
+
+### SPA Routing System
 
 The routing system is powered by React Router 6:
 
@@ -147,6 +181,37 @@ const data: MyRouteResponse = await response.json();
 ```typescript
 <Route path="/my-page" element={<MyPage />} />
 ```
+
+## OAuth2 Authentication
+
+**See**: [OAUTH_IMPLEMENTATION.md](./OAUTH_IMPLEMENTATION.md) for complete OAuth2 setup and usage guide.
+
+Quick start:
+```bash
+# 1. Set up credentials in .env (Google + Microsoft)
+# 2. Dev server runs on http://localhost:8080
+
+# 3. Start OAuth flow
+GET http://localhost:8080/auth/google/login
+# Returns authorization URL for user to click
+
+# 4. Check authenticated providers
+GET http://localhost:8080/api/email/auth/status
+```
+
+Features:
+- ✅ Google OAuth (Gmail)
+- ✅ Microsoft OAuth (Outlook)
+- ✅ PKCE security (S256)
+- ✅ Token encryption (AES-256-CBC)
+- ✅ Automatic token refresh
+- ✅ State-based CSRF protection
+
+## Email Service
+
+**See**: [IMAP_QUICKSTART.md](./IMAP_QUICKSTART.md) for IMAP email fetching and [OAUTH_IMPLEMENTATION.md](./OAUTH_IMPLEMENTATION.md) for OAuth email integration.
+
+Supports both IMAP (Gmail, Yahoo, etc.) and OAuth (Gmail API, Microsoft Graph API) providers.
 
 ## Production Deployment
 
