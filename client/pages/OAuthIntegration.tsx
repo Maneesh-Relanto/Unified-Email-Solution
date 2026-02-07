@@ -21,14 +21,16 @@ export const OAuthIntegrationPage: React.FC = () => {
 
   // Check if we're returning from OAuth callback
   React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    console.log('[OAuthIntegration] Page mounted');
+    const params = new URLSearchParams(globalThis.location.search);
     if (params.get('authenticated') === 'true') {
+      console.log('[OAuthIntegration] Detected successful authentication');
       setAuthMessage({
         type: 'success',
         text: '✓ Authentication successful! Your email account is now connected.',
       });
       // Clear URL params
-      window.history.replaceState({}, document.title, window.location.pathname);
+      globalThis.history.replaceState({}, document.title, globalThis.location.pathname);
       // Refresh accounts
       triggerRefresh();
     }

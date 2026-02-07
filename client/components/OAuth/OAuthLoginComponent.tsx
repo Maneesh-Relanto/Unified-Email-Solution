@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, LogIn } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface OAuthLoginComponentProps {
   onAuthStart?: () => void;
@@ -25,29 +25,43 @@ export const OAuthLoginComponent: React.FC<OAuthLoginComponentProps> = ({
     setError('');
 
     try {
+      console.log(`[OAuth] Starting ${provider} authentication flow`);
       onAuthStart?.();
 
       // Get authorization URL from backend
       const endpoint = `/auth/${provider}/login`;
+      console.log(`[OAuth] Fetching from endpoint: ${endpoint}`);
+      
       const response = await fetch(endpoint);
+      console.log(`[OAuth] Response status: ${response.status}`);
 
       if (!response.ok) {
-        throw new Error(`Failed to initiate ${provider} login`);
+        const errorText = await response.text();
+        console.error(`[OAuth] HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log(`[OAuth] Response data:`, data);
 
-      if (!data.success || !data.data?.authorizationUrl) {
-        throw new Error('Invalid authorization response');
+      if (!data.success) {
+        const errorMsg = data.error || data.message || 'Authorization request failed';
+        throw new Error(errorMsg);
       }
 
+      if (!data.data?.authorizationUrl) {
+        console.error(`[OAuth] Missing authorizationUrl in response:`, data);
+        throw new Error('Invalid authorization response - missing URL');
+      }
+
+      console.log(`[OAuth] Redirecting to authorization URL`);
       // Redirect to provider's authorization page
-      window.location.href = data.data.authorizationUrl;
+      globalThis.location.href = data.data.authorizationUrl;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(`[OAuth] Error for ${provider}:`, err);
       setError(errorMessage);
       onAuthError?.(errorMessage);
-      console.error(`OAuth error for ${provider}:`, err);
     } finally {
       setLoading(null);
     }
