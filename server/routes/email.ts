@@ -231,6 +231,57 @@ export async function getOAuthEmails(req: Request, res: Response) {
 }
 
 /**
+ * Helper: Decrypt OAuth tokens
+ */
+function decryptTokens(credential: any): { accessToken: string; refreshToken: string } | null {
+  try {
+    const { decrypt } = require('../utils/crypto');
+    let accessToken = decrypt(credential.oauthToken.accessToken);
+    let refreshToken = credential.oauthToken.refreshToken ? decrypt(credential.oauthToken.refreshToken) : '';
+    return { accessToken, refreshToken };
+  } catch (decryptError) {
+    console.error(`[OAuth] Decryption error for ${credential.email}:`, decryptError);
+    return null;
+  }
+}
+
+/**
+ * Helper: Fetch emails from a single provider
+ */
+async function fetchEmailsFromProvider(
+  credential: any,
+  limit: number,
+  skip: number,
+  unreadOnly: boolean
+): Promise<{ emails: any[]; error?: string }> {
+  const decrypted = decryptTokens(credential);
+  if (!decrypted) {
+    return { emails: [], error: `${credential.email}: Failed to decrypt credentials` };
+  }
+
+  const oauthProvider = EmailProviderFactory.createProvider({
+    providerType: 'oauth',
+    email: credential.email,
+    provider: credential.provider as 'gmail' | 'outlook',
+    oauthConfig: {
+      clientId: '',
+      clientSecret: '',
+      accessToken: decrypted.accessToken,
+      refreshToken: decrypted.refreshToken,
+      expiresAt: credential.oauthToken.expiresAt,
+    },
+  });
+
+  const authenticated = await oauthProvider.authenticate();
+  if (!authenticated) {
+    return { emails: [], error: `${credential.email}: Authentication failed` };
+  }
+
+  const emails = await oauthProvider.fetchEmails({ limit, skip, unreadOnly });
+  return { emails };
+}
+
+/**
  * Get emails from all OAuth-connected accounts
  * GET /api/email/oauth/all
  * Query params: ?limit=20&skip=0&unreadOnly=false
@@ -257,47 +308,13 @@ export async function getAllOAuthEmails(req: Request, res: Response) {
     // Fetch from each account
     for (const credential of allCredentials) {
       try {
-        // Decrypt the stored tokens
-        let accessToken = credential.oauthToken.accessToken;
-        let refreshToken = credential.oauthToken.refreshToken;
+        const result = await fetchEmailsFromProvider(credential, limit, skip, unreadOnly);
         
-        try {
-          const { decrypt } = require('../utils/crypto');
-          accessToken = decrypt(accessToken);
-          if (refreshToken) {
-            refreshToken = decrypt(refreshToken);
-          }
-        } catch (decryptError) {
-          errors.push(`${credential.email}: Failed to decrypt credentials`);
-          continue;
+        if (result.error) {
+          errors.push(result.error);
+        } else {
+          allEmails.push(...result.emails);
         }
-
-        const oauthProvider = EmailProviderFactory.createProvider({
-          providerType: 'oauth',
-          email: credential.email,
-          provider: credential.provider as 'gmail' | 'outlook',
-          oauthConfig: {
-            clientId: '',
-            clientSecret: '',
-            accessToken,
-            refreshToken,
-            expiresAt: credential.oauthToken.expiresAt,
-          },
-        });
-
-        const authenticated = await oauthProvider.authenticate();
-        if (!authenticated) {
-          errors.push(`${credential.email}: Authentication failed`);
-          continue;
-        }
-
-        const emails = await oauthProvider.fetchEmails({
-          limit,
-          skip,
-          unreadOnly,
-        });
-
-        allEmails.push(...emails);
       } catch (error) {
         errors.push(`${credential.email}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }

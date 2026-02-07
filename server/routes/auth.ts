@@ -3,9 +3,9 @@
  * Handles OAuth2 login, callback, and token management
  */
 
-import { Router, Request, Response, NextFunction } from 'express';
-import { GoogleOAuthService, googleOAuthService } from '../services/oauth/google-oauth';
-import { MicrosoftOAuthService, microsoftOAuthService } from '../services/oauth/microsoft-oauth';
+import { Router, Request, Response } from 'express';
+import { googleOAuthService } from '../services/oauth/google-oauth';
+import { microsoftOAuthService } from '../services/oauth/microsoft-oauth';
 import {
   getAndDeleteStateData,
   logOAuthEvent,
@@ -14,8 +14,6 @@ import {
 } from '../services/oauth/oauth-utils';
 import {
   OAuthError,
-  TokenExchangeResponse,
-  AuthorizationInitResponse,
   StoredOAuthCredential,
   OAuthErrorResponse,
 } from '../services/oauth/types';
@@ -82,7 +80,7 @@ router.get('/google/login', async (req: Request, res: Response) => {
     
     // Store source information with state for use in callback
     const stateKey = `oauth_source_${authRequest.state}`;
-    (global as any)[stateKey] = source;
+    globalThis[stateKey as any] = source;
 
     // Directly redirect to Google's OAuth endpoint
     res.redirect(authRequest.authorizationUrl);
@@ -173,8 +171,8 @@ router.get('/google/callback', async (req: Request, res: Response) => {
 
     // Get source from state data
     const stateKey = `oauth_source_${state}`;
-    const source = (global as any)[stateKey] || 'integration';
-    delete (global as any)[stateKey]; // Clean up
+    const source = globalThis[stateKey as any] || 'integration';
+    delete globalThis[stateKey as any]; // Clean up
 
     // Redirect based on source
     const redirectPath = source === 'settings' ? '/settings' : '/oauth-integration';
@@ -217,7 +215,7 @@ router.get('/microsoft/login', async (req: Request, res: Response) => {
     
     // Store source information with state
     const stateKey = `oauth_source_${authRequest.state}`;
-    (global as any)[stateKey] = source;
+    globalThis[stateKey as any] = source;
 
     // Directly redirect to Microsoft's OAuth endpoint
     res.redirect(authRequest.authorizationUrl);
@@ -309,8 +307,8 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
 
     // Get source from state data
     const stateKey = `oauth_source_${state}`;
-    const source = (global as any)[stateKey] || 'integration';
-    delete (global as any)[stateKey]; // Clean up
+    const source = globalThis[stateKey as any] || 'integration';
+    delete globalThis[stateKey as any]; // Clean up
 
     // Redirect based on source
     const redirectPath = source === 'settings' ? '/settings' : '/oauth-integration';
@@ -322,7 +320,6 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
 });
 
 export {
-  emailCredentialStore,
   getAndDeleteStateData,
   logOAuthEvent,
   logOAuthError,
@@ -391,14 +388,14 @@ export async function handleAuthDisconnect(req: Request, res: Response) {
         await microsoftOAuthService.revokeToken(decryptedToken);
       }
     } catch (error) {
-      logOAuthError(provider as any, 'Token revocation failed', error);
+      logOAuthError(provider, 'Token revocation failed', error);
       // Continue with deletion even if revocation fails
     }
 
     // Delete credential
     emailCredentialStore.removeOAuthCredential(`${provider}_${email}`);
 
-    logOAuthEvent(provider as any, 'Disconnect successful', { email });
+    logOAuthEvent(provider, 'Disconnect successful', { email });
 
     res.json({
       success: true,

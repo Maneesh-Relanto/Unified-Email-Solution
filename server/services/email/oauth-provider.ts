@@ -5,7 +5,6 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
-import { simpleParser, ParsedMail } from 'mailparser';
 import {
   EmailProvider,
   EmailCredentials,
@@ -15,16 +14,15 @@ import {
 import { googleOAuthService } from '../oauth/google-oauth';
 import { microsoftOAuthService } from '../oauth/microsoft-oauth';
 import { emailCredentialStore } from '../../config/email-config';
-import { decrypt } from '../../utils/crypto';
 
 export class OAuthEmailProvider implements EmailProvider {
-  private email: string;
-  private provider: 'gmail' | 'outlook';
+  private readonly email: string;
+  private readonly provider: 'gmail' | 'outlook';
   private accessToken: string;
   private refreshToken: string;
   private expiresAt: number;
-  private apiClient: AxiosInstance;
-  private messageCache: Map<string, ParsedEmail[]> = new Map();
+  private readonly apiClient: AxiosInstance;
+  private readonly messageCache: Map<string, ParsedEmail[]> = new Map();
 
   constructor(credentials: EmailCredentials) {
     if (!credentials.oauthConfig) {
@@ -77,7 +75,7 @@ export class OAuthEmailProvider implements EmailProvider {
     try {
       await this.ensureValidToken();
 
-      if (this.provider === 'gmail' || this.provider === 'google') {
+      if (this.provider === 'gmail') {
         return await this.fetchGmailEmails(options);
       } else {
         return await this.fetchOutlookEmails(options);
@@ -92,7 +90,7 @@ export class OAuthEmailProvider implements EmailProvider {
     try {
       await this.ensureValidToken();
 
-      if (this.provider === 'gmail' || this.provider === 'google') {
+      if (this.provider === 'gmail') {
         const action = read ? 'removeLabels' : 'addLabels';
         await this.apiClient.post(
           `https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}/${action}`,
@@ -136,7 +134,7 @@ export class OAuthEmailProvider implements EmailProvider {
   getProviderInfo() {
     return {
       type: 'oauth' as const,
-      displayName: this.provider === 'gmail' || this.provider === 'google' ? 'Gmail (OAuth)' : 'Outlook (OAuth)',
+      displayName: this.provider === 'gmail' ? 'Gmail (OAuth)' : 'Outlook (OAuth)',
       email: this.email,
     };
   }
@@ -163,7 +161,7 @@ export class OAuthEmailProvider implements EmailProvider {
     try {
       let newToken;
 
-      if (this.provider === 'gmail' || this.provider === 'google') {
+      if (this.provider === 'gmail') {
         newToken = await googleOAuthService.refreshToken(this.refreshToken);
       } else {
         newToken = await microsoftOAuthService.refreshToken(this.refreshToken);
@@ -195,7 +193,7 @@ export class OAuthEmailProvider implements EmailProvider {
 
   private async fetchUserProfile(): Promise<{ email: string; name: string }> {
     try {
-      if (this.provider === 'gmail' || this.provider === 'google') {
+      if (this.provider === 'gmail') {
         console.log('[OAuth gmail] Fetching user profile from Gmail API...');
         console.log(`[OAuth gmail] Authorization header: Bearer ${this.accessToken.substring(0, 20)}...`);
         
@@ -327,7 +325,7 @@ export class OAuthEmailProvider implements EmailProvider {
         preview,
         body,
         html,
-        date: new Date(parseInt(message.internalDate)),
+        date: new Date(Number.parseInt(message.internalDate)),
         read: !isUnread,
         providerName: 'Gmail (OAuth)',
       };

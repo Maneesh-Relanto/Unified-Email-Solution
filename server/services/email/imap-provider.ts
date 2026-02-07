@@ -9,8 +9,8 @@ import { simpleParser } from 'mailparser';
 import { EmailProvider, EmailCredentials, ParsedEmail, FetchEmailsOptions } from './types';
 
 export class ImapEmailProvider implements EmailProvider {
-  private imap: Imap;
-  private credentials: EmailCredentials;
+  private readonly imap: Imap;
+  private readonly credentials: EmailCredentials;
   private authenticated: boolean = false;
 
   constructor(credentials: EmailCredentials) {
@@ -258,9 +258,6 @@ export class ImapEmailProvider implements EmailProvider {
     }
 
     return new Promise((resolve, reject) => {
-      const limit = options?.limit || 20;
-      const skip = options?.skip || 0;
-      const unreadOnly = options?.unreadOnly || false;
       const folder = options?.folder || 'INBOX';
 
       this.imap.openBox(folder, false, (err, box) => {
@@ -269,55 +266,90 @@ export class ImapEmailProvider implements EmailProvider {
           return;
         }
 
-        const searchCriteria = unreadOnly ? ['UNSEEN'] : ['ALL'];
-        
-        this.imap.search(searchCriteria, (err, results) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-
-          if (results.length === 0) {
-            resolve([]);
-            return;
-          }
-
-          // Fetch most recent emails (with limit and skip)
-          // Results array has newest emails at the end
-          // To skip N and get limit M: slice(-(limit + skip), skip > 0 ? -skip : undefined)
-          const startIdx = -(limit + skip);
-          const endIdx = skip > 0 ? -skip : undefined;
-          const toFetch = results.slice(startIdx, endIdx).reverse();
-          const emails: ParsedEmail[] = [];
-          let processed = 0;
-
-          const f = this.imap.fetch(toFetch, { bodies: '' });
-
-          f.on('message', (msg, seqno) => {
-            this.parseMessage(msg, seqno)
-              .then((email) => {
-                if (email) {
-                  emails.push(email);
-                }
-                processed++;
-                if (processed === toFetch.length) {
-                  // All messages processed, sort by date descending
-                  emails.sort((a, b) => b.date.getTime() - a.date.getTime());
-                  resolve(emails);
-                }
-              })
-              .catch((err) => {
-                console.error('Error parsing message:', err);
-                processed++;
-              });
-          });
-
-          f.on('error', (err) => {
-            reject(err);
-          });
-        });
+        this.handleSearch(options, resolve, reject);
       });
     });
+  }
+
+  private handleSearch(
+    options: FetchEmailsOptions | undefined,
+    resolve: (emails: ParsedEmail[]) => void,
+    reject: (error: any) => void
+  ): void {
+    const searchCriteria = options?.unreadOnly ? ['UNSEEN'] : ['ALL'];
+    
+    this.imap.search(searchCriteria, (err, results) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      if (results.length === 0) {
+        resolve([]);
+        return;
+      }
+
+      this.handleSearchResults(options, results, resolve, reject);
+    });
+  }
+
+  private handleSearchResults(
+    options: FetchEmailsOptions | undefined,
+    results: number[],
+    resolve: (emails: ParsedEmail[]) => void,
+    reject: (error: any) => void
+  ): void {
+    const limit = options?.limit || 20;
+    const skip = options?.skip || 0;
+
+    const startIdx = -(limit + skip);
+    const endIdx = skip > 0 ? -skip : undefined;
+    const toFetch = results.slice(startIdx, endIdx).reverse();
+    const emails: ParsedEmail[] = [];
+    let processed = 0;
+
+    const f = this.imap.fetch(toFetch, { bodies: '' });
+
+    f.on('message', (msg, seqno) => {
+      this.handleFetchMessage(msg, seqno, emails, toFetch, processed, resolve);
+    });
+
+    f.on('error', (err) => reject(err));
+  }
+
+  private handleFetchMessage(
+    msg: any,
+    seqno: number,
+    emails: ParsedEmail[],
+    toFetch: number[],
+    processed: number,
+    resolve: (emails: ParsedEmail[]) => void
+  ): void {
+    this.parseMessage(msg, seqno)
+      .then((email) => {
+        if (email) {
+          emails.push(email);
+        }
+        processed++;
+        this.checkIfAllProcessed(emails, toFetch.length, processed, resolve);
+      })
+      .catch((err) => {
+        console.error('Error parsing message:', err);
+        processed++;
+        this.checkIfAllProcessed(emails, toFetch.length, processed, resolve);
+      });
+  }
+
+  private checkIfAllProcessed(
+    emails: ParsedEmail[],
+    totalCount: number,
+    processed: number,
+    resolve: (emails: ParsedEmail[]) => void
+  ): void {
+    if (processed === totalCount) {
+      emails.sort((a, b) => b.date.getTime() - a.date.getTime());
+      resolve(emails);
+    }
   }
 
   private async parseMessage(msg: any, seqno: number): Promise<ParsedEmail | null> {
@@ -342,7 +374,7 @@ export class ImapEmailProvider implements EmailProvider {
             subject: parsed.subject || '(No subject)',
             preview: this.getPreview(parsed.text || parsed.html || ''),
             date: parsed.date || new Date(),
-            read: !parsed.flags?.includes('\\Unseen'),
+            read: !parsed.flags?.includes(String.raw`\Unseen`),
             providerName: this.getProviderInfo().displayName,
             body: parsed.text,
             html: parsed.html,
@@ -367,7 +399,7 @@ export class ImapEmailProvider implements EmailProvider {
 
   private parseEmailAddress(addressStr: string): [string, string] {
     // Format: "Name <email@example.com>" or just "email@example.com"
-    const match = addressStr.match(/(.+?)\s*<(.+?)>/);
+    const match = /(.+?)\s*<(.+?)>/.exec(addressStr);
     if (match) {
       return [match[1].trim(), match[2].trim()];
     }
@@ -384,7 +416,6 @@ export class ImapEmailProvider implements EmailProvider {
   async markAsRead(emailId: string, read: boolean): Promise<void> {
     // This is complex with IMAP as it requires finding the message by UID
     // Implementation depends on how we store email UIDs
-    return Promise.resolve();
   }
 
   async disconnect(): Promise<void> {
