@@ -37,23 +37,24 @@ export function DashboardOverview({
   onProviderSelect,
 }: DashboardOverviewProps) {
   const [loading, setLoading] = useState(true);
+  const [loadingCounts, setLoadingCounts] = useState(true);
   const [providers, setProviders] = useState<ProviderData[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchProvidersWithCounts();
+    fetchAccountsAndCounts();
   }, []);
 
-  async function fetchProvidersWithCounts() {
+  async function fetchAccountsAndCounts() {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch configured accounts (both IMAP and OAuth)
+      // Fetch configured accounts (both IMAP and OAuth) - FAST
       const accountsResponse = await fetch("/api/email/configured");
       const accountsData = await accountsResponse.json();
 
-      // Fetch OAuth accounts
+      // Fetch OAuth accounts - FAST
       const oauthResponse = await fetch("/api/email/auth/status");
       const oauthData = await oauthResponse.json();
       
@@ -74,11 +75,58 @@ export function DashboardOverview({
       if (allAccounts.length === 0) {
         setProviders([]);
         setLoading(false);
+        setLoadingCounts(false);
         return;
       }
 
-      // Fetch all emails to count
-      const emailsResponse = await fetch("/api/email/oauth/all?limit=200");
+      // Build provider data from accounts WITHOUT counts (show cards immediately)
+      const initialProviders: ProviderData[] = allAccounts.map((account: Account) => {
+        const normalizedProvider = account.provider.toLowerCase();
+        const providerKey = normalizedProvider === "microsoft" ? "outlook" : 
+                           normalizedProvider === "google" ? "gmail" : 
+                           normalizedProvider;
+        
+        const config = PROVIDER_CONFIG[providerKey] || { 
+          name: account.provider.toUpperCase(), 
+          icon: "📧" 
+        };
+        
+        const isOAuth = account.provider === 'google' || account.provider === 'microsoft';
+
+        return {
+          name: config.name,
+          icon: config.icon,
+          totalEmails: 0, // Will be updated
+          unreadEmails: 0, // Will be updated
+          providerKey,
+          email: account.email,
+          protocol: isOAuth ? 'OAuth' : 'IMAP',
+        };
+      });
+
+      // Remove duplicates by email
+      const providerMap = new Map<string, ProviderData>();
+      initialProviders.forEach(p => providerMap.set(p.email, p));
+      
+      // Show cards immediately with loading state for counts
+      setProviders(Array.from(providerMap.values()));
+      setLoading(false);
+
+      // Now fetch email counts in background (SLOW)
+      setLoadingCounts(true);
+      fetchEmailCounts(Array.from(providerMap.values()));
+    } catch (err) {
+      console.error("Error fetching providers:", err);
+      setError("Failed to load providers");
+      setLoading(false);
+      setLoadingCounts(false);
+    }
+  }
+
+  async function fetchEmailCounts(currentProviders: ProviderData[]) {
+    try {
+      // Fetch all emails to count - this is the slow part
+      const emailsResponse = await fetch("/api/email/oauth/all?limit=20");
       const emailsData = await emailsResponse.json();
 
       // Group emails by provider
@@ -100,45 +148,30 @@ export function DashboardOverview({
         });
       }
 
-      // Build provider data from accounts
-      const providerMap = new Map<string, ProviderData>();
-      
-      allAccounts.forEach((account: Account) => {
-        const normalizedProvider = account.provider.toLowerCase();
-        const providerKey = normalizedProvider === "microsoft" ? "outlook" : 
-                           normalizedProvider === "google" ? "gmail" : 
-                           normalizedProvider;
-        
-        const config = PROVIDER_CONFIG[providerKey] || { 
-          name: account.provider.toUpperCase(), 
-          icon: "📧" 
+      // Update providers with counts
+      const updatedProviders = currentProviders.map(provider => {
+        const emails = emailsByProvider[provider.providerKey] || [];
+        const unreadCount = emails.filter((e: any) => !e.read).length;
+
+        return {
+          ...provider,
+          totalEmails: emails.length,
+          unreadEmails: unreadCount,
         };
-        
-        const isOAuth = account.provider === 'google' || account.provider === 'microsoft';
-
-        if (!providerMap.has(account.email)) {
-          const emails = emailsByProvider[providerKey] || [];
-          const unreadCount = emails.filter((e: any) => !e.read).length;
-
-          providerMap.set(account.email, {
-            name: config.name,
-            icon: config.icon,
-            totalEmails: emails.length,
-            unreadEmails: unreadCount,
-            providerKey,
-            email: account.email,
-            protocol: isOAuth ? 'OAuth' : 'IMAP',
-          });
-        }
       });
 
-      setProviders(Array.from(providerMap.values()));
+      setProviders(updatedProviders);
     } catch (err) {
-      console.error("Error fetching providers:", err);
-      setError("Failed to load providers");
+      console.error("Error fetching email counts:", err);
+      // Keep cards visible even if counts fail
     } finally {
-      setLoading(false);
+      setLoadingCounts(false);
     }
+  }
+
+  async function fetchProvidersWithCounts() {
+    // Legacy function for retry button
+    await fetchAccountsAndCounts();
   }
 
   if (loading) {
@@ -207,6 +240,7 @@ export function DashboardOverview({
                 unreadEmails={provider.unreadEmails}
                 email={provider.email}
                 protocol={provider.protocol}
+                loadingCounts={loadingCounts}
                 onClick={() => onProviderSelect(provider.providerKey)}
               />
             ))}

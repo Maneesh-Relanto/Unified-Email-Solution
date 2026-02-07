@@ -256,21 +256,34 @@ export default function UnifiedInbox() {
         console.log('[UnifiedInbox] Provider names:', convertedEmails.map(e => e.providerName));
         
         // Append or replace emails based on load type
+        let finalEmailList: OAuthEmail[];
+        let newEmailsCount = convertedEmails.length;
         if (isLoadMore) {
-          setOauthEmails(prev => [...prev, ...convertedEmails]);
+          // Deduplicate: only add emails that don't already exist
+          const existingIds = new Set(oauthEmails.map(e => e.id));
+          const newEmails = convertedEmails.filter(email => !existingIds.has(email.id));
+          newEmailsCount = newEmails.length;
+          console.log(`[UnifiedInbox] Deduplication: ${convertedEmails.length} fetched, ${newEmails.length} new, ${convertedEmails.length - newEmails.length} duplicates skipped`);
+          finalEmailList = [...oauthEmails, ...newEmails];
+          setOauthEmails(finalEmailList);
         } else {
+          finalEmailList = convertedEmails;
           setOauthEmails(convertedEmails);
         }
         
-        // Update hasMore flag
-        setHasMore(data.hasMore === true && convertedEmails.length === limit);
+        // Update hasMore flag - if we got fewer NEW emails than requested, might not have more
+        setHasMore(data.hasMore === true && newEmailsCount > 0);
         
         // Update provider email counts by provider type
-        updateProviderCounts(isLoadMore ? [...oauthEmails, ...convertedEmails] : convertedEmails);
+        updateProviderCounts(finalEmailList);
         
         statusBar.removeMessage(loadingId);
         if (isLoadMore) {
-          statusBar.showSuccess(`Loaded ${convertedEmails.length} more emails`);
+          if (newEmailsCount > 0) {
+            statusBar.showSuccess(`Loaded ${newEmailsCount} more email${newEmailsCount !== 1 ? 's' : ''}`);
+          } else {
+            statusBar.showInfo('No new emails to load');
+          }
         } else {
           statusBar.showSuccess(`Loaded ${convertedEmails.length} emails${data.hasMore ? ' (more available)' : ''}`);
         }

@@ -10,6 +10,7 @@ interface ProviderCardProps {
   onClick: () => void;
   email?: string;
   protocol?: 'OAuth' | 'IMAP';
+  loadingCounts?: boolean;
 }
 
 export function ProviderCard({
@@ -21,6 +22,7 @@ export function ProviderCard({
   onClick,
   email,
   protocol,
+  loadingCounts = false,
 }: ProviderCardProps) {
   const unreadPercentage =
     totalEmails > 0 ? (unreadEmails / totalEmails) * 100 : 0;
@@ -80,13 +82,21 @@ export function ProviderCard({
           <div className="bg-primary/5 rounded-lg p-3 border border-primary/20">
             <div className="flex items-baseline justify-between mb-2">
               <p className="text-sm font-medium text-muted-foreground">Total Emails</p>
-              <p className="text-3xl font-bold text-primary">{totalEmails}</p>
+              {loadingCounts ? (
+                <div className="h-9 w-16 bg-primary/20 rounded animate-pulse" />
+              ) : (
+                <p className="text-3xl font-bold text-primary">{totalEmails}</p>
+              )}
             </div>
             <div className="w-full bg-primary/20 rounded-full h-2.5">
-              <div
-                className="bg-primary h-2.5 rounded-full transition-all"
-                style={{ width: "100%" }}
-              />
+              {loadingCounts ? (
+                <div className="bg-primary/40 h-2.5 rounded-full animate-pulse" style={{ width: "60%" }} />
+              ) : (
+                <div
+                  className="bg-primary h-2.5 rounded-full transition-all"
+                  style={{ width: "100%" }}
+                />
+              )}
             </div>
           </div>
 
@@ -95,17 +105,27 @@ export function ProviderCard({
             <div className="flex items-baseline justify-between mb-2">
               <p className="text-sm font-medium text-muted-foreground">Unread</p>
               <div className="flex items-baseline gap-2">
-                <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">{unreadEmails}</p>
-                <p className="text-xs text-muted-foreground font-medium">
-                  ({unreadPercentage.toFixed(0)}%)
-                </p>
+                {loadingCounts ? (
+                  <div className="h-9 w-16 bg-orange-500/20 rounded animate-pulse" />
+                ) : (
+                  <>
+                    <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">{unreadEmails}</p>
+                    <p className="text-xs text-muted-foreground font-medium">
+                      ({unreadPercentage.toFixed(0)}%)
+                    </p>
+                  </>
+                )}
               </div>
             </div>
             <div className="w-full bg-orange-500/20 rounded-full h-2.5">
-              <div
-                className="bg-orange-600 dark:bg-orange-400 h-2.5 rounded-full transition-all"
-                style={{ width: `${unreadPercentage}%` }}
-              />
+              {loadingCounts ? (
+                <div className="bg-orange-600/40 dark:bg-orange-400/40 h-2.5 rounded-full animate-pulse" style={{ width: "40%" }} />
+              ) : (
+                <div
+                  className="bg-orange-600 dark:bg-orange-400 h-2.5 rounded-full transition-all"
+                  style={{ width: `${unreadPercentage}%` }}
+                />
+              )}
             </div>
           </div>
         </div>
