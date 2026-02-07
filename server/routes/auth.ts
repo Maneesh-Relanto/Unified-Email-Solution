@@ -4,8 +4,8 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
-import { GoogleOAuthService } from '../services/oauth/google-oauth';
-import { MicrosoftOAuthService } from '../services/oauth/microsoft-oauth';
+import { GoogleOAuthService, googleOAuthService } from '../services/oauth/google-oauth';
+import { MicrosoftOAuthService, microsoftOAuthService } from '../services/oauth/microsoft-oauth';
 import {
   getAndDeleteStateData,
   logOAuthEvent,
@@ -23,19 +23,6 @@ import { emailCredentialStore } from '../config/email-config';
 import { encrypt, decrypt } from '../utils/crypto';
 
 const router = Router();
-
-// Initialize OAuth services from environment variables
-const googleOAuthService = new GoogleOAuthService({
-  clientId: process.env.GOOGLE_CLIENT_ID || '',
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-  redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8081/auth/google/callback',
-});
-
-const microsoftOAuthService = new MicrosoftOAuthService({
-  clientId: process.env.MICROSOFT_CLIENT_ID || '',
-  clientSecret: process.env.MICROSOFT_CLIENT_SECRET || '',
-  redirectUri: process.env.MICROSOFT_REDIRECT_URI || 'http://localhost:8081/auth/microsoft/callback',
-});
 
 // ===== ERROR HANDLER MIDDLEWARE =====
 

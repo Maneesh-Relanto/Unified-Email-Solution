@@ -256,3 +256,9 @@ export class MicrosoftOAuthService {
     }
   }
 }
+// Export singleton instance
+export const microsoftOAuthService = new MicrosoftOAuthService({
+  clientId: process.env.MICROSOFT_CLIENT_ID || '',
+  clientSecret: process.env.MICROSOFT_CLIENT_SECRET || '',
+  redirectUri: process.env.MICROSOFT_REDIRECT_URI || 'http://localhost:8080/auth/microsoft/callback',
+});

@@ -6,8 +6,7 @@
 
 import { EmailProvider, EmailCredentials, EmailProviderType } from './types';
 import { ImapEmailProvider } from './imap-provider';
-// TODO: Import other providers as they are implemented
-// import { OAuthEmailProvider } from './oauth-provider';
+import { OAuthEmailProvider } from './oauth-provider';
 // import { GraphAPIEmailProvider } from './graph-provider';
 
 export class EmailProviderFactory {
@@ -17,8 +16,7 @@ export class EmailProviderFactory {
         return new ImapEmailProvider(credentials);
       
       case 'oauth':
-        // TODO: Implement OAuth provider
-        throw new Error('OAuth provider not yet implemented');
+        return new OAuthEmailProvider(credentials);
       
       case 'graph':
         // TODO: Implement Graph API provider

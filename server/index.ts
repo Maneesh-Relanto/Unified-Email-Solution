@@ -16,6 +16,8 @@ import {
   testConnectionWithProgress,
   clearCache,
   disconnectAll,
+  getOAuthEmails,
+  getAllOAuthEmails,
 } from "./routes/email";
 
 export function createServer() {
@@ -42,6 +44,10 @@ export function createServer() {
   app.post("/api/email/init", initializeProviders);
   app.get("/api/email/all", getAllEmails);
   app.get("/api/email/accounts", getAccounts);
+  
+  // OAuth email fetching - specific before parameterized
+  app.get("/api/email/oauth/all", getAllOAuthEmails);
+  app.get("/api/email/oauth/provider/:email", getOAuthEmails);
   
   // Settings endpoints - specific before parameterized
   app.get("/api/email/configured", getConfiguredAccounts);

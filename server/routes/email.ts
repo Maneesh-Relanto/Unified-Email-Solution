@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { emailService } from '../services/email-service';
 import { emailCredentialStore, loadCredentialsFromEnv, getImapConfigForProvider } from '../config/email-config';
+import { EmailProviderFactory } from '../services/email/index';
 import { z } from 'zod';
 
 /**
@@ -118,6 +119,149 @@ export async function getEmailsByProvider(req: Request, res: Response) {
   } catch (error) {
     res.status(500).json({
       error: 'Failed to fetch emails',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
+ * Fetch emails from OAuth-connected account
+ * GET /api/email/oauth/provider/:email
+ * Query params: ?limit=20&unreadOnly=false
+ * 
+ * Uses stored OAuth credentials to fetch from Gmail API or Microsoft Graph API
+ */
+export async function getOAuthEmails(req: Request, res: Response) {
+  try {
+    const { email } = req.params;
+    const limit = Number.parseInt(req.query.limit as string) || 20;
+    const unreadOnly = req.query.unreadOnly === 'true';
+
+    // Find credential in storage (could be google_email or microsoft_email)
+    let credential = emailCredentialStore.getOAuthCredential(`google_${email}`);
+    if (!credential) {
+      credential = emailCredentialStore.getOAuthCredential(`microsoft_${email}`);
+    }
+
+    if (!credential) {
+      return res.status(404).json({
+        error: 'OAuth credential not found',
+        message: `No OAuth credential found for: ${email}. Please authenticate first at /auth/google/login or /auth/microsoft/login`,
+      });
+    }
+
+    // Create OAuth provider instance
+    const oauthProvider = EmailProviderFactory.createProvider({
+      providerType: 'oauth',
+      email: credential.email,
+      provider: credential.provider as 'gmail' | 'outlook',
+      oauthConfig: {
+        clientId: '', // Not needed for fetching with access token
+        clientSecret: '', // Not needed for fetching with access token
+        accessToken: credential.oauthToken.accessToken,
+        refreshToken: credential.oauthToken.refreshToken,
+        expiresAt: credential.oauthToken.expiresAt,
+      },
+    });
+
+    // Authenticate and fetch emails
+    const authenticated = await oauthProvider.authenticate();
+    if (!authenticated) {
+      return res.status(401).json({
+        error: 'Authentication failed',
+        message: 'Could not authenticate with OAuth provider. Your token may have expired.',
+      });
+    }
+
+    // Fetch emails
+    const emails = await oauthProvider.fetchEmails({
+      limit,
+      unreadOnly,
+    });
+
+    res.json({
+      success: true,
+      provider: credential.provider,
+      email: credential.email,
+      count: emails.length,
+      emails,
+    });
+  } catch (error) {
+    console.error('[OAuth Email Fetch Error]', error);
+    res.status(500).json({
+      error: 'Failed to fetch OAuth emails',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
+ * Get emails from all OAuth-connected accounts
+ * GET /api/email/oauth/all
+ * Query params: ?limit=20&unreadOnly=false
+ */
+export async function getAllOAuthEmails(req: Request, res: Response) {
+  try {
+    const limit = Number.parseInt(req.query.limit as string) || 20;
+    const unreadOnly = req.query.unreadOnly === 'true';
+
+    // Get all OAuth credentials
+    const allCredentials = emailCredentialStore.getAllOAuthCredentials();
+
+    if (allCredentials.length === 0) {
+      return res.status(400).json({
+        error: 'No OAuth accounts connected',
+        message: 'Please authenticate with Google or Microsoft first',
+      });
+    }
+
+    const allEmails = [];
+    const errors = [];
+
+    // Fetch from each account
+    for (const credential of allCredentials) {
+      try {
+        const oauthProvider = EmailProviderFactory.createProvider({
+          providerType: 'oauth',
+          email: credential.email,
+          provider: credential.provider as 'gmail' | 'outlook',
+          oauthConfig: {
+            clientId: '',
+            clientSecret: '',
+            accessToken: credential.oauthToken.accessToken,
+            refreshToken: credential.oauthToken.refreshToken,
+            expiresAt: credential.oauthToken.expiresAt,
+          },
+        });
+
+        const authenticated = await oauthProvider.authenticate();
+        if (!authenticated) {
+          errors.push(`${credential.email}: Authentication failed`);
+          continue;
+        }
+
+        const emails = await oauthProvider.fetchEmails({
+          limit,
+          unreadOnly,
+        });
+
+        allEmails.push(...emails);
+      } catch (error) {
+        errors.push(`${credential.email}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    res.json({
+      success: true,
+      count: allEmails.length,
+      accounts: allCredentials.length,
+      errors: errors.length > 0 ? errors : undefined,
+      emails: allEmails,
+    });
+  } catch (error) {
+    console.error('[OAuth Email Fetch Error]', error);
+    res.status(500).json({
+      error: 'Failed to fetch from OAuth accounts',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
