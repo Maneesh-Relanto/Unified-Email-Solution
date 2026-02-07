@@ -154,15 +154,32 @@ export default function SettingsPage() {
   const [removingEmail, setRemovingEmail] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Fetch configured accounts on load
+  // Fetch configured accounts on load (both IMAP and OAuth)
   const fetchAccounts = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/email/configured");
-      const data = await response.json();
-      if (data.success) {
-        setAccounts(data.accounts);
+      const allAccounts: ConfiguredAccount[] = [];
+      
+      // Fetch IMAP accounts
+      const imapResponse = await fetch("/api/email/configured");
+      const imapData = await imapResponse.json();
+      if (imapData.success && imapData.accounts) {
+        allAccounts.push(...imapData.accounts);
       }
+      
+      // Fetch OAuth accounts
+      const oauthResponse = await fetch("/api/email/auth/status");
+      const oauthData = await oauthResponse.json();
+      if (oauthData.success && oauthData.data?.providers) {
+        const oauthAccounts = oauthData.data.providers.map((provider: any) => ({
+          email: provider.email,
+          provider: provider.provider, // 'google' or 'microsoft'
+          configured: true,
+        }));
+        allAccounts.push(...oauthAccounts);
+      }
+      
+      setAccounts(allAccounts);
     } catch (error) {
       console.error("Error fetching accounts:", error);
       setMessage({ type: "error", text: "Failed to load accounts" });
@@ -290,9 +307,28 @@ export default function SettingsPage() {
 
     try {
       setRemovingEmail(email);
-      const response = await fetch(`/api/email/account/${encodeURIComponent(email)}`, {
-        method: "DELETE",
-      });
+      
+      // Find the account to determine if it's OAuth or IMAP
+      const account = accounts.find(acc => acc.email === email);
+      const isOAuthProvider = account?.provider === 'google' || account?.provider === 'microsoft';
+      
+      let response;
+      if (isOAuthProvider) {
+        // Use OAuth disconnect endpoint
+        response = await fetch(`/api/email/auth/disconnect`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: account.provider,
+            email: email,
+          }),
+        });
+      } else {
+        // Use IMAP delete endpoint
+        response = await fetch(`/api/email/account/${encodeURIComponent(email)}`, {
+          method: "DELETE",
+        });
+      }
 
       const data = await response.json();
       if (data.success) {
@@ -332,6 +368,26 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2">
             <Button
               asChild
+              variant="default"
+              size="sm"
+              title="Go to Dashboard"
+            >
+              <Link to="/">
+                Dashboard
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              title="Go to Unified Inbox"
+            >
+              <Link to="/unified-inbox">
+                Unified Inbox
+              </Link>
+            </Button>
+            <Button
+              asChild
               variant="outline"
               size="sm"
               title="View troubleshooting guide"
@@ -369,9 +425,60 @@ export default function SettingsPage() {
           </>
         )}
 
+        {/* Account Summary */}
+        {!loading && accounts.length > 0 && (
+          <section className="mb-8">
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <Mail className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Account Summary
+                </h2>
+              </div>
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <div className="flex-1">
+                  <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                    {accounts.length}
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {accounts.length === 1 ? 'Account Connected' : 'Accounts Connected'}
+                  </p>
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Connected Providers:
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from(new Set(accounts.map(acc => {
+                      const provider = getProvider(acc.provider);
+                      return provider?.name || acc.provider;
+                    }))).map(providerName => (
+                      <span
+                        key={providerName}
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-white dark:bg-slate-800 border border-gray-300 dark:border-gray-700"
+                      >
+                        {providerName}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Configured Accounts */}
         <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4">Connected Accounts</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">Connected Email Accounts</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {accounts.length === 0 
+                  ? "No email addresses connected" 
+                  : `${accounts.length} email ${accounts.length === 1 ? 'address' : 'addresses'} connected`}
+              </p>
+            </div>
+          </div>
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader className="w-6 h-6 animate-spin text-primary" />
@@ -383,26 +490,49 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Add your first account below</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {accounts.map((account) => {
                 const provider = getProvider(account.provider);
                 return (
-                  <div key={account.email} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/50">
-                    <div className="flex items-center gap-3">
-                      <div className={`${provider?.color} text-white rounded-full w-10 h-10 flex items-center justify-center text-lg`}>
+                  <div 
+                    key={account.email} 
+                    className="flex items-center justify-between p-4 border-2 border-border rounded-lg hover:bg-accent/50 hover:border-primary/50 transition-all"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`${provider?.color} text-white rounded-full w-12 h-12 flex items-center justify-center text-xl shadow-md`}>
                         {provider?.icon}
                       </div>
-                      <div>
-                        <p className="font-medium">{account.email}</p>
-                        <p className="text-sm text-muted-foreground">{provider?.name}</p>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <p className="text-base font-semibold text-foreground">{account.email}</p>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">
+                            Active
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-sm text-muted-foreground">{provider?.name}</p>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                            style={{
+                              backgroundColor: (account.provider === 'google' || account.provider === 'microsoft') 
+                                ? 'rgb(59, 130, 246, 0.1)' 
+                                : 'rgb(168, 85, 247, 0.1)',
+                              color: (account.provider === 'google' || account.provider === 'microsoft') 
+                                ? 'rgb(59, 130, 246)' 
+                                : 'rgb(168, 85, 247)'
+                            }}
+                          >
+                            {(account.provider === 'google' || account.provider === 'microsoft') ? 'OAuth' : 'IMAP'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                      className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700"
                       onClick={() => handleRemoveAccount(account.email)}
                       disabled={removingEmail === account.email}
+                      title="Remove account"
                     >
                       {removingEmail === account.email ? (
                         <Loader className="w-4 h-4 animate-spin" />
@@ -486,7 +616,7 @@ export default function SettingsPage() {
               </div>
 
               {/* OAuth Form for Gmail and Outlook */}
-              {(selectedProvider === "gmail" || selectedProvider === "microsoft") && (
+              {(selectedProvider === "gmail" || selectedProvider === "outlook") && (
                 <OAuthSettingsForm 
                   provider={selectedProvider === "outlook" ? "microsoft" : "gmail"}
                   onCancel={() => {
@@ -502,7 +632,7 @@ export default function SettingsPage() {
               )}
 
               {/* Manual Form for other providers */}
-              {selectedProvider !== "gmail" && selectedProvider !== "microsoft" && (
+              {selectedProvider !== "gmail" && selectedProvider !== "outlook" && (
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Email Address</label>

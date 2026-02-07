@@ -134,7 +134,15 @@ export function useStatusBar() {
     return addMessage({ type: "error", text, duration });
   };
 
-  const showLoading = (text: string) => {
+  const showLoading = (text: string, existingId?: string) => {
+    if (existingId) {
+      // Update existing message
+      setMessages((prev) =>
+        prev.map((m) => (m.id === existingId ? { ...m, text } : m))
+      );
+      return existingId;
+    }
+    // Create new message
     return addMessage({ type: "loading", text, duration: 0 });
   };
 

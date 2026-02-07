@@ -84,6 +84,7 @@ interface Provider {
   icon: string;
   emails?: Email[];
   hasOAuth?: boolean;
+  email?: string; // Email address for the provider account
 }
 
 export default function UnifiedInbox() {
@@ -95,6 +96,7 @@ export default function UnifiedInbox() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const emailsPerPage = 30;
   
   // Status bar hook
@@ -105,17 +107,18 @@ export default function UnifiedInbox() {
     fetchOAuthAccounts();
   }, []);
 
-  // Fetch emails when provider changes
+  // Fetch emails when provider changes (only after accounts are loaded)
   useEffect(() => {
+    if (!accountsLoaded) return; // Don't fetch until accounts are loaded
+    
     if (selectedProviderId === "all") {
       fetchAllOAuthEmails();
-    } else if (oauthAccounts.length > 0) {
-      // Only fetch if we have accounts loaded
+    } else {
       fetchOAuthEmails(selectedProviderId);
     }
     // Reset to first page when provider changes
     setCurrentPage(1);
-  }, [selectedProviderId, oauthAccounts.length]);
+  }, [selectedProviderId, accountsLoaded]);
 
   const fetchOAuthAccounts = async () => {
     try {
@@ -131,6 +134,7 @@ export default function UnifiedInbox() {
           name: account.provider === 'google' ? 'Gmail' : 'Outlook',
           icon: account.provider === 'google' ? '📧' : '📬',
           hasOAuth: true,
+          email: account.email, // Include email address for sidebar display
           emails: [], // Will be populated when emails are fetched
         }));
         
@@ -140,13 +144,16 @@ export default function UnifiedInbox() {
         );
         
         setProviders(uniqueProviders);
+        setAccountsLoaded(true); // Mark accounts as loaded
       } else {
         setProviders([]);
         setOauthEmails([]);
+        setAccountsLoaded(true); // Still mark as loaded even if empty
       }
     } catch (error) {
       console.error('Failed to fetch OAuth accounts:', error);
       setProviders([]);
+      setAccountsLoaded(true); // Mark as loaded to prevent hanging
     }
   };
 
@@ -175,13 +182,38 @@ export default function UnifiedInbox() {
   };
 
   const fetchAllOAuthEmails = async () => {
+    if (loadingEmails) return; // Prevent duplicate calls
+    
     setLoadingEmails(true);
     setError(null);
-    const loadingId = statusBar.showLoading('Loading emails from all accounts...');
+    
+    const startTime = Date.now();
+    let messageStep = 0;
+    
+    // Show initial message immediately
+    const loadingId = statusBar.showLoading('🔌 Contacting server... (0s)');
+    
+    // Update message every 1 second with elapsed time
+    const messages = [
+      '🔌 Contacting server',
+      '📬 Authenticating',
+      '📨 Reading your emails',
+      '📊 Processing email data',
+      '⏳ Almost there',
+    ];
+    
+    const updateInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      messageStep = Math.min(messageStep + 1, messages.length - 1);
+      statusBar.showLoading(`${messages[messageStep]}... (${elapsed}s)`, loadingId);
+    }, 1500);
     
     try {
       console.log('[UnifiedInbox] Fetching all OAuth emails...');
-      const response = await fetch("/api/email/oauth/all?limit=20");
+      const response = await fetch("/api/email/oauth/all?limit=200");
+      
+      // Clear interval
+      clearInterval(updateInterval);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch emails: ${response.status} ${response.statusText}`);
@@ -222,6 +254,9 @@ export default function UnifiedInbox() {
         statusBar.showInfo('No emails found');
       }
     } catch (error) {
+      // Clear interval on error
+      clearInterval(updateInterval);
+      
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch emails';
       console.error('[UnifiedInbox] Failed to fetch all OAuth emails:', errorMessage);
       setError(errorMessage);
@@ -234,12 +269,34 @@ export default function UnifiedInbox() {
   };
 
   const fetchOAuthEmails = async (provider: string) => {
+    if (loadingEmails) return; // Prevent duplicate calls
+    
     setLoadingEmails(true);
     setError(null);
     const providerName = provider === 'gmail' ? 'Gmail' : 'Outlook';
-    const loadingId = statusBar.showLoading(`Loading emails from ${providerName}...`);
+    
+    const startTime = Date.now();
+    let messageStep = 0;
+    
+    // Show initial message immediately
+    const loadingId = statusBar.showLoading(`🔌 Connecting to ${providerName}... (0s)`);
+    
+    // Update message every 1.2 seconds
+    const messages = [
+      `🔌 Connecting to ${providerName}`,
+      `🔑 Authenticating ${providerName}`,
+      `📬 Reading ${providerName} emails`,
+      `📊 Loading email data`,
+    ];
+    
+    const updateInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      messageStep = Math.min(messageStep + 1, messages.length - 1);
+      statusBar.showLoading(`${messages[messageStep]}... (${elapsed}s)`, loadingId);
+    }, 1200);
     
     try {
+      clearInterval(updateInterval); // Clear if completes quickly
       // Find the email address for this provider
       const account = oauthAccounts.find(acc => 
         (provider === 'gmail' && acc.provider === 'google') ||
@@ -257,7 +314,7 @@ export default function UnifiedInbox() {
 
       console.log(`[UnifiedInbox] Fetching ${provider} emails for:`, account.email);
       const encodedEmail = encodeURIComponent(account.email);
-      const response = await fetch(`/api/email/oauth/provider/${encodedEmail}?limit=20`);
+      const response = await fetch(`/api/email/oauth/provider/${encodedEmail}?limit=200`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch emails: ${response.status} ${response.statusText}`);
@@ -298,6 +355,8 @@ export default function UnifiedInbox() {
         statusBar.showInfo(`No emails found in ${providerName}`);
       }
     } catch (error) {
+      clearInterval(updateInterval); // Clear interval on error
+      
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch emails';
       console.error('[UnifiedInbox] Failed to fetch OAuth emails:', errorMessage);
       setError(errorMessage);

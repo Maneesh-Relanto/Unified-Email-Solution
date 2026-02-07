@@ -9,6 +9,7 @@ interface SidebarProvider {
   color?: string;
   abbreviation?: string;
   hasOAuth?: boolean;
+  email?: string; // Email address for the provider
 }
 
 interface UnifiedSidebarProps {
@@ -94,6 +95,11 @@ export function UnifiedSidebar({
               )}
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{provider.name}</p>
+                {provider.email && (
+                  <p className="text-[10px] text-muted-foreground truncate mb-0.5" title={provider.email}>
+                    {provider.email}
+                  </p>
+                )}
                 <p className="text-xs opacity-70">
                   {emailCount} email{emailCount !== 1 ? 's' : ''}
                 </p>
