@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import UnifiedInbox from "./pages/UnifiedInbox";
 import Settings from "./pages/Settings";
+import OAuthIntegration from "./pages/OAuthIntegration";
 import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { SecurityProvider } from "@/hooks/use-security";
@@ -35,6 +36,7 @@ const App = () => (
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/unified-inbox" element={<UnifiedInbox />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/oauth-integration" element={<OAuthIntegration />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
