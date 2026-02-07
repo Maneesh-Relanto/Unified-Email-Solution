@@ -4,8 +4,9 @@ import { UnifiedSidebar } from "@/components/UnifiedSidebar";
 import { EmailList } from "@/components/EmailList";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
+import { StatusBar, useStatusBar } from "@/components/StatusBar";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, Settings, Loader } from "lucide-react";
+import { LayoutGrid, Settings, Loader, ChevronLeft, ChevronRight } from "lucide-react";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import type { Email } from "@/lib/mock-emails";
 
@@ -67,7 +68,7 @@ interface OAuthEmail {
   preview: string;
   date: string;
   read: boolean;
-  provider: 'google' | 'microsoft';
+  providerName: string;  // e.g., 'Gmail (OAuth)', 'Outlook (OAuth)'
 }
 
 interface OAuthAccount {
@@ -93,6 +94,11 @@ export default function UnifiedInbox() {
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const emailsPerPage = 30;
+  
+  // Status bar hook
+  const statusBar = useStatusBar();
 
   // Initialize providers from OAuth accounts on mount
   useEffect(() => {
@@ -107,6 +113,8 @@ export default function UnifiedInbox() {
       // Only fetch if we have accounts loaded
       fetchOAuthEmails(selectedProviderId);
     }
+    // Reset to first page when provider changes
+    setCurrentPage(1);
   }, [selectedProviderId, oauthAccounts.length]);
 
   const fetchOAuthAccounts = async () => {
@@ -123,6 +131,7 @@ export default function UnifiedInbox() {
           name: account.provider === 'google' ? 'Gmail' : 'Outlook',
           icon: account.provider === 'google' ? '📧' : '📬',
           hasOAuth: true,
+          emails: [], // Will be populated when emails are fetched
         }));
         
         // Remove duplicates (in case multiple accounts from same provider)
@@ -141,9 +150,35 @@ export default function UnifiedInbox() {
     }
   };
 
+  // Update provider email counts after fetching
+  const updateProviderCounts = (emails: OAuthEmail[]) => {
+    console.log('[updateProviderCounts] Updating counts for', emails.length, 'emails');
+    setProviders(prevProviders => 
+      prevProviders.map(provider => {
+        // Count emails for this provider by matching providerName
+        const providerEmails = emails.filter(email => {
+          // Gmail provider matches 'Gmail (OAuth)' or similar
+          if (provider.id === 'gmail') return email.providerName?.toLowerCase().includes('gmail');
+          // Microsoft/Outlook provider matches 'Outlook (OAuth)' or similar
+          if (provider.id === 'microsoft') return email.providerName?.toLowerCase().includes('outlook');
+          return false;
+        });
+        
+        console.log(`[updateProviderCounts] Provider ${provider.id}: ${providerEmails.length} emails`);
+        
+        return {
+          ...provider,
+          emails: providerEmails,
+        };
+      })
+    );
+  };
+
   const fetchAllOAuthEmails = async () => {
     setLoadingEmails(true);
     setError(null);
+    const loadingId = statusBar.showLoading('Loading emails from all accounts...');
+    
     try {
       console.log('[UnifiedInbox] Fetching all OAuth emails...');
       const response = await fetch("/api/email/oauth/all?limit=20");
@@ -155,6 +190,7 @@ export default function UnifiedInbox() {
       const data = await response.json();
       console.log('[UnifiedInbox] All emails response:', data);
       console.log('[UnifiedInbox] Sample email from field:', data.emails?.[0]?.from);
+      console.log(`[UnifiedInbox] Total emails fetched: ${data.emails?.length || 0}`);
 
       if (data.emails) {
         const convertedEmails: OAuthEmail[] = data.emails.map((email: any) => {
@@ -162,25 +198,36 @@ export default function UnifiedInbox() {
           const normalizedFrom = normalizeEmailFrom(email.from);
           
           return {
-            id: email.id || `${email.provider}-${normalizedFrom.email}`,
+            id: email.id || `${email.providerName}-${normalizedFrom.email}`,
             from: normalizedFrom,
             subject: email.subject || '(No Subject)',
             preview: email.preview || email.body?.substring(0, 200) || '',
             date: email.date || new Date().toISOString(),
             read: email.read || false,
-            provider: email.provider === 'google' ? 'google' : 'microsoft',
+            providerName: email.providerName || 'Unknown',
           };
         });
         console.log('[UnifiedInbox] Converted emails:', convertedEmails);
+        console.log('[UnifiedInbox] Provider names:', convertedEmails.map(e => e.providerName));
         setOauthEmails(convertedEmails);
+        
+        // Update provider email counts by provider type
+        updateProviderCounts(convertedEmails);
+        
+        statusBar.removeMessage(loadingId);
+        statusBar.showSuccess(`Loaded ${convertedEmails.length} emails from all accounts`);
       } else {
         setOauthEmails([]);
+        statusBar.removeMessage(loadingId);
+        statusBar.showInfo('No emails found');
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch emails';
       console.error('[UnifiedInbox] Failed to fetch all OAuth emails:', errorMessage);
       setError(errorMessage);
       setOauthEmails([]);
+      statusBar.removeMessage(loadingId);
+      statusBar.showError(errorMessage);
     } finally {
       setLoadingEmails(false);
     }
@@ -189,6 +236,9 @@ export default function UnifiedInbox() {
   const fetchOAuthEmails = async (provider: string) => {
     setLoadingEmails(true);
     setError(null);
+    const providerName = provider === 'gmail' ? 'Gmail' : 'Outlook';
+    const loadingId = statusBar.showLoading(`Loading emails from ${providerName}...`);
+    
     try {
       // Find the email address for this provider
       const account = oauthAccounts.find(acc => 
@@ -200,6 +250,8 @@ export default function UnifiedInbox() {
         console.warn('[UnifiedInbox] No account found for provider:', provider);
         setOauthEmails([]);
         setLoadingEmails(false);
+        statusBar.removeMessage(loadingId);
+        statusBar.showError(`No ${providerName} account connected`);
         return;
       }
 
@@ -214,6 +266,7 @@ export default function UnifiedInbox() {
       const data = await response.json();
       console.log(`[UnifiedInbox] ${provider} emails response:`, data);
       console.log('[UnifiedInbox] Sample email from field:', data.emails?.[0]?.from);
+      console.log(`[UnifiedInbox] ${provider} emails count: ${data.emails?.length || 0}`);
 
       if (data.emails) {
         const convertedEmails: OAuthEmail[] = data.emails.map((email: any) => {
@@ -227,19 +280,30 @@ export default function UnifiedInbox() {
             preview: email.preview || email.body?.substring(0, 200) || '',
             date: email.date || new Date().toISOString(),
             read: email.read || false,
-            provider: provider === 'gmail' ? 'google' : 'microsoft',
+            providerName: email.providerName || 'Unknown',
           };
         });
         console.log('[UnifiedInbox] Converted emails:', convertedEmails);
+        console.log('[UnifiedInbox] Provider names:', convertedEmails.map(e => e.providerName));
         setOauthEmails(convertedEmails);
+        
+        // Update provider email counts for this specific provider
+        updateProviderCounts(convertedEmails);
+        
+        statusBar.removeMessage(loadingId);
+        statusBar.showSuccess(`Loaded ${convertedEmails.length} emails from ${providerName}`);
       } else {
         setOauthEmails([]);
+        statusBar.removeMessage(loadingId);
+        statusBar.showInfo(`No emails found in ${providerName}`);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch emails';
       console.error('[UnifiedInbox] Failed to fetch OAuth emails:', errorMessage);
       setError(errorMessage);
       setOauthEmails([]);
+      statusBar.removeMessage(loadingId);
+      statusBar.showError(errorMessage);
     } finally {
       setLoadingEmails(false);
     }
@@ -253,13 +317,19 @@ export default function UnifiedInbox() {
     preview: email.preview,
     date: new Date(email.date),
     read: email.read,
-    providerName: email.provider === 'google' ? 'Gmail' : 'Outlook',
+    providerName: email.providerName?.includes('Gmail') ? 'Gmail' : 'Outlook',
   }));
 
   // Sort emails by date (newest first)
   const sortedEmails = [...emails].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
+
+  // Pagination
+  const totalPages = Math.ceil(sortedEmails.length / emailsPerPage);
+  const startIndex = (currentPage - 1) * emailsPerPage;
+  const endIndex = startIndex + emailsPerPage;
+  const paginatedEmails = sortedEmails.slice(startIndex, endIndex);
 
   const unreadCount = sortedEmails.filter((email) => !email.read).length;
   
@@ -287,7 +357,8 @@ export default function UnifiedInbox() {
             <p className="text-sm text-muted-foreground mt-1">
               {sortedEmails.length} email{sortedEmails.length !== 1 ? "s" : ""} (
               {unreadCount} unread)
-              {loadingEmails && " - Loading..."}
+              {totalPages > 1 && ` • Page ${currentPage} of ${totalPages}`}
+              {loadingEmails && " • Loading..."}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -358,14 +429,56 @@ export default function UnifiedInbox() {
               </div>
             </div>
           ) : (
-            <EmailList
-              emails={sortedEmails}
-              selectedEmailId={selectedEmailId}
-              onEmailSelect={(email) => setSelectedEmailId(email.id)}
-            />
+            <>
+              <div className="flex-1 overflow-hidden">
+                <EmailList
+                  emails={paginatedEmails}
+                  selectedEmailId={selectedEmailId}
+                  onEmailSelect={(email) => setSelectedEmailId(email.id)}
+                />
+              </div>
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="border-t border-border bg-card px-6 py-3 flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1}-{Math.min(endIndex, sortedEmails.length)} of {sortedEmails.length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-1" />
+                      Previous
+                    </Button>
+                    <div className="text-sm font-medium px-3">
+                      Page {currentPage} of {totalPages}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
+      
+      {/* Status Bar */}
+      <StatusBar
+        messages={statusBar.messages}
+        onDismiss={statusBar.removeMessage}
+      />
     </div>
   );
 }

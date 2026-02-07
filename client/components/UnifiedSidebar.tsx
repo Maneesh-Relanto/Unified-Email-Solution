@@ -95,7 +95,7 @@ export function UnifiedSidebar({
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{provider.name}</p>
                 <p className="text-xs opacity-70">
-                  {provider.hasOAuth ? "Connected" : `${emailCount} emails`}
+                  {emailCount} email{emailCount !== 1 ? 's' : ''}
                 </p>
               </div>
             </button>
