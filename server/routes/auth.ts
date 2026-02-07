@@ -305,13 +305,19 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
   }
 });
 
-// ===== AUTH STATUS & MANAGEMENT =====
+export {
+  emailCredentialStore,
+  getAndDeleteStateData,
+  logOAuthEvent,
+  logOAuthError,
+  isTokenExpired,
+} from '../services/oauth/oauth-utils';
 
-/**
- * GET /api/email/auth/status
- * Check OAuth authentication status
- */
-router.get('/api/email/auth/status', (req: Request, res: Response) => {
+export { googleOAuthService } from '../services/oauth/google-oauth';
+export { microsoftOAuthService } from '../services/oauth/microsoft-oauth';
+
+// Auth status endpoints are exported to be handled separately in index.ts
+export async function handleAuthStatus(req: Request, res: Response) {
   try {
     const credentials = emailCredentialStore.getAllOAuthCredentials();
 
@@ -337,13 +343,9 @@ router.get('/api/email/auth/status', (req: Request, res: Response) => {
       error: 'Failed to check auth status',
     });
   }
-});
+}
 
-/**
- * POST /api/email/auth/disconnect
- * Disconnect OAuth provider
- */
-router.post('/api/email/auth/disconnect', async (req: Request, res: Response) => {
+export async function handleAuthDisconnect(req: Request, res: Response) {
   try {
     const { provider, email } = req.body;
 
@@ -393,6 +395,6 @@ router.post('/api/email/auth/disconnect', async (req: Request, res: Response) =>
       error: 'Failed to disconnect',
     });
   }
-});
+}
 
 export default router;

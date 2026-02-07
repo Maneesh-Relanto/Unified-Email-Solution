@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
-import authRoutes from "./routes/auth";
+import authRoutes, { handleAuthStatus, handleAuthDisconnect } from "./routes/auth";
 import {
   initializeProviders,
   getAllEmails,
@@ -38,6 +38,10 @@ export function createServer() {
 
   // OAuth2 Authentication routes
   app.use("/auth", authRoutes);
+
+  // OAuth auth status and management endpoints
+  app.get("/api/email/auth/status", handleAuthStatus);
+  app.post("/api/email/auth/disconnect", handleAuthDisconnect);
 
   // Email API routes (IMAP/OAuth/etc)
   // IMPORTANT: Specific routes must come BEFORE parameterized routes
