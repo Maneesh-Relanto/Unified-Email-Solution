@@ -9,6 +9,54 @@ import { LayoutGrid, Settings, Loader } from "lucide-react";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import type { Email } from "@/lib/mock-emails";
 
+/**
+ * Normalize email.from field to consistent { name, email } format
+ * Handles both string format "Name <email@example.com>" and object format { name, email }
+ */
+function normalizeEmailFrom(from: any): { name: string; email: string } {
+  // If already normalized object, return as-is
+  if (typeof from === 'object' && from !== null && 'name' in from && 'email' in from) {
+    return {
+      name: from.name || 'Unknown Sender',
+      email: from.email || 'unknown@example.com',
+    };
+  }
+
+  // Handle string format "Name <email@example.com>"
+  if (typeof from === 'string') {
+    const match = from.match(/^(.+?)\s*<(.+?)>$/) || from.match(/^(.+)$/);
+    if (match) {
+      if (match.length === 3) {
+        // Matched "Name <email>" format
+        return {
+          name: match[1].trim() || 'Unknown Sender',
+          email: match[2].trim() || 'unknown@example.com',
+        };
+      } else {
+        // Only got the email or name, treat as email if it contains @
+        const value = match[1].trim();
+        if (value.includes('@')) {
+          return {
+            name: 'Unknown Sender',
+            email: value,
+          };
+        } else {
+          return {
+            name: value || 'Unknown Sender',
+            email: 'unknown@example.com',
+          };
+        }
+      }
+    }
+  }
+
+  // Fallback for any other format
+  return {
+    name: 'Unknown Sender',
+    email: 'unknown@example.com',
+  };
+}
+
 interface OAuthEmail {
   id: string;
   from: {
@@ -97,6 +145,7 @@ export default function UnifiedInbox() {
     setLoadingEmails(true);
     setError(null);
     try {
+      console.log('[UnifiedInbox] Fetching all OAuth emails...');
       const response = await fetch("/api/email/oauth/all?limit=20");
       
       if (!response.ok) {
@@ -104,27 +153,32 @@ export default function UnifiedInbox() {
       }
 
       const data = await response.json();
+      console.log('[UnifiedInbox] All emails response:', data);
+      console.log('[UnifiedInbox] Sample email from field:', data.emails?.[0]?.from);
 
       if (data.emails) {
-        const convertedEmails: OAuthEmail[] = data.emails.map((email: any) => ({
-          id: email.id || `${email.provider}-${email.from}`,
-          from: {
-            name: email.from.split('<')[0].trim() || 'Unknown',
-            email: email.from.match(/<(.+?)>/)?.[1] || email.from,
-          },
-          subject: email.subject || '(No Subject)',
-          preview: email.preview || email.body?.substring(0, 200) || '',
-          date: email.date || new Date().toISOString(),
-          read: email.read || false,
-          provider: email.provider === 'google' ? 'google' : 'microsoft',
-        }));
+        const convertedEmails: OAuthEmail[] = data.emails.map((email: any) => {
+          // Normalize from field (handle both string and object formats)
+          const normalizedFrom = normalizeEmailFrom(email.from);
+          
+          return {
+            id: email.id || `${email.provider}-${normalizedFrom.email}`,
+            from: normalizedFrom,
+            subject: email.subject || '(No Subject)',
+            preview: email.preview || email.body?.substring(0, 200) || '',
+            date: email.date || new Date().toISOString(),
+            read: email.read || false,
+            provider: email.provider === 'google' ? 'google' : 'microsoft',
+          };
+        });
+        console.log('[UnifiedInbox] Converted emails:', convertedEmails);
         setOauthEmails(convertedEmails);
       } else {
         setOauthEmails([]);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch emails';
-      console.error('Failed to fetch all OAuth emails:', errorMessage);
+      console.error('[UnifiedInbox] Failed to fetch all OAuth emails:', errorMessage);
       setError(errorMessage);
       setOauthEmails([]);
     } finally {
@@ -143,11 +197,13 @@ export default function UnifiedInbox() {
       );
 
       if (!account) {
+        console.warn('[UnifiedInbox] No account found for provider:', provider);
         setOauthEmails([]);
         setLoadingEmails(false);
         return;
       }
 
+      console.log(`[UnifiedInbox] Fetching ${provider} emails for:`, account.email);
       const encodedEmail = encodeURIComponent(account.email);
       const response = await fetch(`/api/email/oauth/provider/${encodedEmail}?limit=20`);
       
@@ -156,27 +212,32 @@ export default function UnifiedInbox() {
       }
 
       const data = await response.json();
+      console.log(`[UnifiedInbox] ${provider} emails response:`, data);
+      console.log('[UnifiedInbox] Sample email from field:', data.emails?.[0]?.from);
 
       if (data.emails) {
-        const convertedEmails: OAuthEmail[] = data.emails.map((email: any) => ({
-          id: email.id || `${provider}-${email.from}`,
-          from: {
-            name: email.from.split('<')[0].trim() || 'Unknown',
-            email: email.from.match(/<(.+?)>/)?.[1] || email.from,
-          },
-          subject: email.subject || '(No Subject)',
-          preview: email.preview || email.body?.substring(0, 200) || '',
-          date: email.date || new Date().toISOString(),
-          read: email.read || false,
-          provider: provider === 'gmail' ? 'google' : 'microsoft',
-        }));
+        const convertedEmails: OAuthEmail[] = data.emails.map((email: any) => {
+          // Normalize from field (handle both string and object formats)
+          const normalizedFrom = normalizeEmailFrom(email.from);
+          
+          return {
+            id: email.id || `${provider}-${normalizedFrom.email}`,
+            from: normalizedFrom,
+            subject: email.subject || '(No Subject)',
+            preview: email.preview || email.body?.substring(0, 200) || '',
+            date: email.date || new Date().toISOString(),
+            read: email.read || false,
+            provider: provider === 'gmail' ? 'google' : 'microsoft',
+          };
+        });
+        console.log('[UnifiedInbox] Converted emails:', convertedEmails);
         setOauthEmails(convertedEmails);
       } else {
         setOauthEmails([]);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch emails';
-      console.error('Failed to fetch OAuth emails:', errorMessage);
+      console.error('[UnifiedInbox] Failed to fetch OAuth emails:', errorMessage);
       setError(errorMessage);
       setOauthEmails([]);
     } finally {

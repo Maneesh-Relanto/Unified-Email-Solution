@@ -30,6 +30,7 @@ class EmailCredentialStore {
   private readonly oauthCredentials: Map<string, any> = new Map();
   private readonly dataDir = path.join(__dirname, '..', 'data');
   private readonly oauthCredsFile = path.join(this.dataDir, 'oauth-credentials.json');
+  private readonly imapCredsFile = path.join(this.dataDir, 'imap-credentials.json');
 
   constructor() {
     // Create data directory if it doesn't exist
@@ -38,6 +39,8 @@ class EmailCredentialStore {
     }
     // Load OAuth credentials from file on startup
     this.loadOAuthCredentialsFromFile();
+    // Load IMAP credentials from file on startup
+    this.loadImapCredentialsFromFile();
   }
 
   /**
@@ -83,6 +86,48 @@ class EmailCredentialStore {
   }
 
   /**
+   * Load IMAP credentials from persistent file
+   */
+  private loadImapCredentialsFromFile(): void {
+    try {
+      if (fs.existsSync(this.imapCredsFile)) {
+        const fileContent = fs.readFileSync(this.imapCredsFile, 'utf-8');
+        const credentials = JSON.parse(fileContent);
+        
+        Object.entries(credentials).forEach(([key, cred]: [string, any]) => {
+          this.credentials.set(key, cred);
+        });
+        
+        console.log(`✓ Loaded ${this.credentials.size} IMAP credentials from file`);
+      }
+    } catch (error) {
+      console.error('[IMAP Load Error]', error);
+      console.warn('⚠ Could not load IMAP credentials from file, starting fresh');
+    }
+  }
+
+  /**
+   * Save IMAP credentials to persistent file
+   */
+  private saveImapCredentialsToFile(): void {
+    try {
+      const credentials: Record<string, any> = {};
+      this.credentials.forEach((cred, key) => {
+        credentials[key] = cred;
+      });
+      
+      fs.writeFileSync(
+        this.imapCredsFile,
+        JSON.stringify(credentials, null, 2),
+        'utf-8'
+      );
+      console.log(`✓ Saved ${this.credentials.size} IMAP credentials to file`);
+    } catch (error) {
+      console.error('[IMAP Save Error]', error);
+    }
+  }
+
+  /**
    * Store email credentials with encrypted password
    * @param key Unique key (email address)
    * @param credentials Email provider credentials
@@ -104,6 +149,8 @@ class EmailCredentialStore {
       };
     }
     this.credentials.set(key, credentials);
+    // Auto-save to file after storing
+    this.saveImapCredentialsToFile();
   }
 
   /**
@@ -177,7 +224,13 @@ class EmailCredentialStore {
    * @param key Email address key
    */
   removeCredentials(key: string): boolean {
-    return this.credentials.delete(key);
+    const deleted = this.credentials.delete(key);
+    if (deleted) {
+      // Auto-save to file after removing
+      this.saveImapCredentialsToFile();
+      console.log(`✓ Removed IMAP credential: ${key}`);
+    }
+    return deleted;
   }
 
   /**
