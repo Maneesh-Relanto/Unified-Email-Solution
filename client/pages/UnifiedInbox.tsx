@@ -6,6 +6,7 @@ import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
 import { Button } from "@/components/ui/button";
 import { LayoutGrid, Settings, Loader } from "lucide-react";
+import { ErrorAlert } from "@/components/ErrorAlert";
 import type { Email } from "@/lib/mock-emails";
 
 interface OAuthEmail {
@@ -260,24 +261,18 @@ export default function UnifiedInbox() {
         {/* Email List */}
         <div className="flex-1 overflow-hidden flex flex-col">
           {error && (
-            <div className="bg-destructive/10 border border-destructive/20 p-3 m-2 rounded-md">
-              <p className="text-sm text-destructive">{error}</p>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="mt-2"
-                onClick={() => { 
-                  setError(null); 
-                  if (selectedProviderId === "all") {
-                    fetchAllOAuthEmails();
-                  } else {
-                    fetchOAuthEmails(selectedProviderId);
-                  }
-                }}
-              >
-                Retry
-              </Button>
-            </div>
+            <ErrorAlert
+              message={error}
+              details="Failed to load emails from your connected accounts. Check your connection and try again."
+              onDismiss={() => setError(null)}
+              onRetry={() => {
+                if (selectedProviderId === "all") {
+                  fetchAllOAuthEmails();
+                } else {
+                  fetchOAuthEmails(selectedProviderId);
+                }
+              }}
+            />
           )}
           {providers.length === 0 ? (
             <div className="flex items-center justify-center h-full flex-col">

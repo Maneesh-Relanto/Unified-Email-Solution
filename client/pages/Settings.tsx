@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Settings, Mail, Trash2, Plus, AlertCircle, CheckCircle, Loader, ChevronRight, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Settings, Mail, Trash2, Plus, AlertCircle, CheckCircle, Loader, ChevronRight, ArrowLeft, Eye, EyeOff, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
 import { OAuthSettingsForm } from "@/components/OAuthSettingsForm";
+import { ErrorAlert } from "@/components/ErrorAlert";
 
 interface ConfiguredAccount {
   email: string;
@@ -176,6 +177,23 @@ export default function SettingsPage() {
     
     // Check for OAuth callback
     const params = new URLSearchParams(globalThis.location.search);
+    
+    // Handle authentication errors
+    if (params.get('error')) {
+      const error = params.get('error');
+      const errorDescription = params.get('error_description') || 'OAuth authentication failed';
+      
+      setMessage({
+        type: 'error',
+        text: `Authentication Error: ${errorDescription}. Please try again or use a different authentication method.`,
+      });
+      
+      // Clear URL params
+      globalThis.history.replaceState({}, document.title, globalThis.location.pathname);
+      return;
+    }
+    
+    // Handle successful authentication
     if (params.get('authenticated') === 'true') {
       const provider = params.get('provider');
       const email = params.get('email');
@@ -312,6 +330,17 @@ export default function SettingsPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              title="View troubleshooting guide"
+            >
+              <Link to="/troubleshooting">
+                <HelpCircle className="w-4 h-4 mr-2" />
+                Help & FAQ
+              </Link>
+            </Button>
             <SecurityButton />
             <ThemeDropdown />
           </div>
@@ -322,24 +351,22 @@ export default function SettingsPage() {
       <main className="flex-1 max-w-4xl mx-auto px-6 py-8 w-full">
         {/* Messages */}
         {message && (
-          <div className={`p-4 rounded-lg mb-6 flex items-start gap-3 ${
-            message.type === "success"
-              ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-              : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-          }`}>
-            {message.type === "success" ? (
-              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+          <>
+            {message.type === "error" ? (
+              <ErrorAlert
+                message={message.text}
+                details="Please check your credentials and try again, or use OAuth for automatic handling."
+                onDismiss={() => setMessage(null)}
+              />
             ) : (
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <div className={`p-4 rounded-lg mb-6 flex items-start gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800`}>
+                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-green-800 dark:text-green-200">
+                  {message.text}
+                </p>
+              </div>
             )}
-            <p className={`text-sm ${
-              message.type === "success"
-                ? "text-green-800 dark:text-green-200"
-                : "text-red-800 dark:text-red-200"
-            }`}>
-              {message.text}
-            </p>
-          </div>
+          </>
         )}
 
         {/* Configured Accounts */}
