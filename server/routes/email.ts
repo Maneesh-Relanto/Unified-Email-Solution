@@ -66,7 +66,7 @@ export async function initializeProviders(req: Request, res: Response) {
  */
 export async function getAllEmails(req: Request, res: Response) {
   try {
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = Number.parseInt(req.query.limit as string) || 20;
     const unreadOnly = req.query.unreadOnly === 'true';
 
     const emails = await emailService.fetchAllEmails({
@@ -95,7 +95,7 @@ export async function getAllEmails(req: Request, res: Response) {
 export async function getEmailsByProvider(req: Request, res: Response) {
   try {
     const { emailAddress } = req.params;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = Number.parseInt(req.query.limit as string) || 20;
     const unreadOnly = req.query.unreadOnly === 'true';
 
     if (!emailService.isInitialized(emailAddress)) {
@@ -242,7 +242,7 @@ export function addEmailAccount(req: Request, res: Response) {
       });
     }
 
-    // Store credentials
+    // Store credentials (password will be encrypted automatically)
     emailCredentialStore.storeCredentials(email, {
       providerType: 'imap',
       email,
@@ -250,7 +250,7 @@ export function addEmailAccount(req: Request, res: Response) {
       imapConfig: {
         ...imapConfig,
         username: email,
-        password, // TODO: Encrypt this in production
+        password, // Will be encrypted in EmailCredentialStore
       },
     });
 
@@ -397,10 +397,6 @@ export async function testConnectionWithProgress(req: Request, res: Response) {
     console.log('🚀 Starting authentication process...\n');
 
     const authStartTime = Date.now();
-    
-    // Create a test provider with enhanced logging
-    const originalDebug = console.log;
-    const imapLogs: string[] = [];
     
     const authenticated = await testProvider.authenticate();
     

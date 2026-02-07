@@ -14,9 +14,9 @@ interface EmailCache {
 }
 
 export class EmailService {
-  private providers: Map<string, EmailProvider> = new Map();
-  private cache: Map<string, EmailCache> = new Map();
-  private defaultCacheTTL = 5 * 60 * 1000; // 5 minutes
+  private readonly providers: Map<string, EmailProvider> = new Map();
+  private readonly cache: Map<string, EmailCache> = new Map();
+  private readonly defaultCacheTTL = 5 * 60 * 1000; // 5 minutes
 
   /**
    * Initialize provider for a given email account
@@ -79,7 +79,7 @@ export class EmailService {
   async fetchAllEmails(options?: FetchEmailsOptions): Promise<ParsedEmail[]> {
     const allEmails: ParsedEmail[] = [];
 
-    for (const [email, provider] of this.providers) {
+    for (const [email] of this.providers) {
       try {
         const emails = await this.fetchEmails(email, options);
         allEmails.push(...emails);
@@ -127,7 +127,7 @@ export class EmailService {
    * Disconnect all providers
    */
   async disconnectAll(): Promise<void> {
-    for (const [email, provider] of this.providers) {
+    for (const [, provider] of this.providers) {
       await provider.disconnect();
     }
     this.providers.clear();

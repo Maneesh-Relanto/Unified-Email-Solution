@@ -58,17 +58,17 @@ function initializeApp() {
 
   try {
     // Try to create a new root - if it fails, the root already exists
-    if (!window.__appRoot) {
-      window.__appRoot = createRoot(rootElement);
+    if (!globalThis.__appRoot) {
+      globalThis.__appRoot = createRoot(rootElement);
     }
   } catch (e) {
-    // If createRoot fails because root already exists, that's fine
-    // The existing root will be used for render
+    // If createRoot fails because root already exists, log and continue
+    console.warn('Root already exists, reusing existing root:', e);
   }
 
   // Render with the root (either newly created or existing)
-  if (window.__appRoot) {
-    window.__appRoot.render(<App />);
+  if (globalThis.__appRoot) {
+    globalThis.__appRoot.render(<App />);
   }
 }
 
