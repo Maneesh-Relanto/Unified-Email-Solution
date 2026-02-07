@@ -169,15 +169,9 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       expiresIn: token.expiresIn,
     });
 
-    const response: TokenExchangeResponse = {
-      success: true,
-      provider: 'google',
-      email: userInfo.email,
-      credential: encryptedCredential,
-      message: 'Successfully authenticated with Google',
-    };
-
-    res.json(response);
+    // Redirect back to OAuth integration page with success indicator
+    const redirectUrl = `http://localhost:8080/oauth-integration?authenticated=true&provider=google&email=${encodeURIComponent(userInfo.email)}`;
+    res.redirect(redirectUrl);
   } catch (error) {
     handleOAuthError(error, res, 'google');
   }
@@ -303,15 +297,9 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
       expiresIn: token.expiresIn,
     });
 
-    const response: TokenExchangeResponse = {
-      success: true,
-      provider: 'microsoft',
-      email,
-      credential: encryptedCredential,
-      message: 'Successfully authenticated with Microsoft',
-    };
-
-    res.json(response);
+    // Redirect back to OAuth integration page with success indicator
+    const redirectUrl = `http://localhost:8080/oauth-integration?authenticated=true&provider=microsoft&email=${encodeURIComponent(email)}`;
+    res.redirect(redirectUrl);
   } catch (error) {
     handleOAuthError(error, res, 'microsoft');
   }
@@ -334,6 +322,7 @@ router.get('/api/email/auth/status', (req: Request, res: Response) => {
         email: cred.email,
         expiresAt: cred.oauthToken.expiresAt,
         isExpired: isTokenExpired(cred.oauthToken.expiresAt),
+        createdAt: cred.createdAt instanceof Date ? cred.createdAt.toISOString() : cred.createdAt,
       })),
     };
 
