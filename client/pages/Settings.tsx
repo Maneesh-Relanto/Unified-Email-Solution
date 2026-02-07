@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
+import { OAuthSettingsForm } from "@/components/OAuthSettingsForm";
 
 interface ConfiguredAccount {
   email: string;
@@ -172,6 +173,29 @@ export default function SettingsPage() {
   // Fetch accounts on mount
   useEffect(() => {
     fetchAccounts();
+    
+    // Check for OAuth callback
+    const params = new URLSearchParams(globalThis.location.search);
+    if (params.get('authenticated') === 'true') {
+      const provider = params.get('provider');
+      const email = params.get('email');
+      const providerName = provider === 'microsoft' ? 'Outlook' : provider?.toUpperCase() || 'Email';
+      
+      setMessage({
+        type: 'success',
+        text: `✓ ${providerName} account (${email}) connected successfully!`,
+      });
+      
+      // Clear URL params
+      globalThis.history.replaceState({}, document.title, globalThis.location.pathname);
+      
+      // Reset form
+      setSelectedProvider(null);
+      setFormData({ email: '', password: '' });
+      
+      // Refresh accounts list
+      setTimeout(() => fetchAccounts(), 500);
+    }
   }, []);
 
   const handleTestConnection = async (provider: string) => {
@@ -419,81 +443,86 @@ export default function SettingsPage() {
                     <h3 className="text-lg font-semibold">
                       Add {getProvider(selectedProvider)?.name} Account
                     </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedProvider === "gmail"
-                        ? "Use your Gmail address and App Password (16 chars with spaces)"
-                        : "Use your email address and password"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Form */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Email Address</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder={selectedProvider === "gmail" ? "your.email@gmail.com" : "your.email@provider.com"}
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    {selectedProvider === "gmail" ? "App Password" : "Password"}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder={selectedProvider === "gmail" ? "xxxx xxxx xxxx xxxx" : "Enter password"}
-                      className="w-full px-3 py-2 pr-10 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      title={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                  {selectedProvider === "gmail" && (
-                    <div className="mt-3 space-y-2">
-                      <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                        <p className="text-xs text-blue-900 dark:text-blue-200">
-                          <strong>💡 Tip:</strong> Paste the password <strong>AS IS with spaces</strong> (xxxx xxxx xxxx xxxx). We automatically remove them.
-                        </p>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        📌 Don't have an App Password? Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">myaccount.google.com/apppasswords</a>
+                    {selectedProvider === "gmail" || selectedProvider === "outlook" ? (
+                      <p className="text-sm text-muted-foreground">
+                        Use secure OAuth authentication - no password stored
                       </p>
-                    </div>
-                  )}
-                  {selectedProvider !== "gmail" && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Enter your account password
-                    </p>
-                  )}
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {selectedProvider === "gmail"
+                          ? "Use your Gmail address and App Password (16 chars with spaces)"
+                          : "Use your email address and password"}
+                      </p>
+                    )}
+                  </div>
                 </div>
-
-                <Button
-                  onClick={() => handleTestConnection(selectedProvider)}
-                  className="w-full"
-                  disabled={!formData.email || !formData.password}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Test & Add Account
-                </Button>
               </div>
+
+              {/* OAuth Form for Gmail and Outlook */}
+              {(selectedProvider === "gmail" || selectedProvider === "microsoft") && (
+                <OAuthSettingsForm 
+                  provider={selectedProvider === "outlook" ? "microsoft" : "gmail"}
+                  onCancel={() => {
+                    setSelectedProvider(null);
+                    setFormData({ email: "", password: "" });
+                  }}
+                  onSuccess={() => {
+                    setSelectedProvider(null);
+                    setFormData({ email: "", password: "" });
+                    fetchAccounts();
+                  }}
+                />
+              )}
+
+              {/* Manual Form for other providers */}
+              {selectedProvider !== "gmail" && selectedProvider !== "microsoft" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Email Address</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="your.email@provider.com"
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        placeholder="Enter password"
+                        className="w-full px-3 py-2 pr-10 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => handleTestConnection(selectedProvider)}
+                    className="w-full"
+                    disabled={!formData.email || !formData.password}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Test & Add Account
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </section>

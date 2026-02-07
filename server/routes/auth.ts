@@ -54,6 +54,8 @@ function handleOAuthError(error: any, res: Response, provider: string) {
 /**
  * GET /auth/google/login
  * Initiates Google OAuth2 flow
+ * Query params:
+ *   - source: 'settings' or 'integration' (defaults to 'integration')
  */
 router.get('/google/login', async (req: Request, res: Response) => {
   try {
@@ -65,15 +67,22 @@ router.get('/google/login', async (req: Request, res: Response) => {
       });
     }
 
+    const source = (req.query.source || 'integration') as string;
+
     logOAuthEvent('google', 'Login initiated from', {
       ip: req.ip,
       userAgent: req.get('user-agent')?.substring(0, 50),
+      source,
     });
 
     const authRequest = await googleOAuthService.initiateAuthorization();
 
     // Store state in session (or use httpOnly cookie in production)
     res.setHeader('Set-Cookie', `oauth_state=${authRequest.state}; Path=/; HttpOnly`);
+    
+    // Store source information with state for use in callback
+    const stateKey = `oauth_source_${authRequest.state}`;
+    (global as any)[stateKey] = source;
 
     const response: AuthorizationInitResponse = {
       authorizationUrl: authRequest.authorizationUrl,
@@ -169,8 +178,14 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       expiresIn: token.expiresIn,
     });
 
-    // Redirect back to OAuth integration page with success indicator
-    const redirectUrl = `http://localhost:8080/oauth-integration?authenticated=true&provider=google&email=${encodeURIComponent(userInfo.email)}`;
+    // Get source from state data
+    const stateKey = `oauth_source_${state}`;
+    const source = (global as any)[stateKey] || 'integration';
+    delete (global as any)[stateKey]; // Clean up
+
+    // Redirect based on source
+    const redirectPath = source === 'settings' ? '/settings' : '/oauth-integration';
+    const redirectUrl = `http://localhost:8080${redirectPath}?authenticated=true&provider=google&email=${encodeURIComponent(userInfo.email)}`;
     res.redirect(redirectUrl);
   } catch (error) {
     handleOAuthError(error, res, 'google');
@@ -182,6 +197,8 @@ router.get('/google/callback', async (req: Request, res: Response) => {
 /**
  * GET /auth/microsoft/login
  * Initiates Microsoft OAuth2 flow
+ * Query params:
+ *   - source: 'settings' or 'integration' (defaults to 'integration')
  */
 router.get('/microsoft/login', async (req: Request, res: Response) => {
   try {
@@ -193,14 +210,21 @@ router.get('/microsoft/login', async (req: Request, res: Response) => {
       });
     }
 
+    const source = (req.query.source || 'integration') as string;
+
     logOAuthEvent('microsoft', 'Login initiated from', {
       ip: req.ip,
       userAgent: req.get('user-agent')?.substring(0, 50),
+      source,
     });
 
     const authRequest = await microsoftOAuthService.initiateAuthorization();
 
     res.setHeader('Set-Cookie', `oauth_state=${authRequest.state}; Path=/; HttpOnly`);
+    
+    // Store source information with state
+    const stateKey = `oauth_source_${authRequest.state}`;
+    (global as any)[stateKey] = source;
 
     const response: AuthorizationInitResponse = {
       authorizationUrl: authRequest.authorizationUrl,
@@ -297,8 +321,14 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
       expiresIn: token.expiresIn,
     });
 
-    // Redirect back to OAuth integration page with success indicator
-    const redirectUrl = `http://localhost:8080/oauth-integration?authenticated=true&provider=microsoft&email=${encodeURIComponent(email)}`;
+    // Get source from state data
+    const stateKey = `oauth_source_${state}`;
+    const source = (global as any)[stateKey] || 'integration';
+    delete (global as any)[stateKey]; // Clean up
+
+    // Redirect based on source
+    const redirectPath = source === 'settings' ? '/settings' : '/oauth-integration';
+    const redirectUrl = `http://localhost:8080${redirectPath}?authenticated=true&provider=microsoft&email=${encodeURIComponent(email)}`;
     res.redirect(redirectUrl);
   } catch (error) {
     handleOAuthError(error, res, 'microsoft');
