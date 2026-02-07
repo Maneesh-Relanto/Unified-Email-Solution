@@ -163,7 +163,7 @@ export class OAuthEmailProvider implements EmailProvider {
     try {
       let newToken;
 
-      if (this.provider === 'gmail') {
+      if (this.provider === 'gmail' || this.provider === 'google') {
         newToken = await googleOAuthService.refreshToken(this.refreshToken);
       } else {
         newToken = await microsoftOAuthService.refreshToken(this.refreshToken);
