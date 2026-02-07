@@ -84,15 +84,8 @@ router.get('/google/login', async (req: Request, res: Response) => {
     const stateKey = `oauth_source_${authRequest.state}`;
     (global as any)[stateKey] = source;
 
-    const response: AuthorizationInitResponse = {
-      authorizationUrl: authRequest.authorizationUrl,
-      state: authRequest.state,
-    };
-
-    res.json({
-      success: true,
-      data: response,
-    });
+    // Directly redirect to Google's OAuth endpoint
+    res.redirect(authRequest.authorizationUrl);
   } catch (error) {
     handleOAuthError(error, res, 'google');
   }
@@ -226,15 +219,8 @@ router.get('/microsoft/login', async (req: Request, res: Response) => {
     const stateKey = `oauth_source_${authRequest.state}`;
     (global as any)[stateKey] = source;
 
-    const response: AuthorizationInitResponse = {
-      authorizationUrl: authRequest.authorizationUrl,
-      state: authRequest.state,
-    };
-
-    res.json({
-      success: true,
-      data: response,
-    });
+    // Directly redirect to Microsoft's OAuth endpoint
+    res.redirect(authRequest.authorizationUrl);
   } catch (error) {
     handleOAuthError(error, res, 'microsoft');
   }

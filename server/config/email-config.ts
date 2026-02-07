@@ -12,6 +12,8 @@
 
 import { EmailCredentials } from '../services/email/types';
 import { encrypt, decrypt, decryptIfNeeded } from '../utils/crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Provider type alias
@@ -21,10 +23,64 @@ type ProviderType = 'gmail' | 'yahoo' | 'outlook' | 'rediff';
 /**
  * In-memory storage for credentials
  * SECURITY: Passwords are encrypted before storage
- * Note: Still in-memory, migrate to persistent encrypted storage in production
+ * Credentials are persisted to server/data/oauth-credentials.json
  */
 class EmailCredentialStore {
   private readonly credentials: Map<string, EmailCredentials> = new Map();
+  private readonly oauthCredentials: Map<string, any> = new Map();
+  private readonly dataDir = path.join(__dirname, '..', 'data');
+  private readonly oauthCredsFile = path.join(this.dataDir, 'oauth-credentials.json');
+
+  constructor() {
+    // Create data directory if it doesn't exist
+    if (!fs.existsSync(this.dataDir)) {
+      fs.mkdirSync(this.dataDir, { recursive: true });
+    }
+    // Load OAuth credentials from file on startup
+    this.loadOAuthCredentialsFromFile();
+  }
+
+  /**
+   * Load OAuth credentials from persistent file
+   */
+  private loadOAuthCredentialsFromFile(): void {
+    try {
+      if (fs.existsSync(this.oauthCredsFile)) {
+        const fileContent = fs.readFileSync(this.oauthCredsFile, 'utf-8');
+        const credentials = JSON.parse(fileContent);
+        
+        Object.entries(credentials).forEach(([key, cred]: [string, any]) => {
+          this.oauthCredentials.set(key, cred);
+        });
+        
+        console.log(`✓ Loaded ${this.oauthCredentials.size} OAuth credentials from file`);
+      }
+    } catch (error) {
+      console.error('[OAuth Load Error]', error);
+      console.warn('⚠ Could not load OAuth credentials from file, starting fresh');
+    }
+  }
+
+  /**
+   * Save OAuth credentials to persistent file
+   */
+  private saveOAuthCredentialsToFile(): void {
+    try {
+      const credentials: Record<string, any> = {};
+      this.oauthCredentials.forEach((cred, key) => {
+        credentials[key] = cred;
+      });
+      
+      fs.writeFileSync(
+        this.oauthCredsFile,
+        JSON.stringify(credentials, null, 2),
+        'utf-8'
+      );
+      console.log(`✓ Saved OAuth credentials to file`);
+    } catch (error) {
+      console.error('[OAuth Save Error]', error);
+    }
+  }
 
   /**
    * Store email credentials with encrypted password
@@ -160,8 +216,6 @@ class EmailCredentialStore {
 
   // ===== OAUTH CREDENTIAL METHODS =====
 
-  private readonly oauthCredentials: Map<string, any> = new Map();
-
   /**
    * Store OAuth credential
    * @param key Unique key in format: `provider_email` (e.g., `google_user@gmail.com`)
@@ -169,6 +223,7 @@ class EmailCredentialStore {
    */
   setOAuthCredential(key: string, credential: any): void {
     this.oauthCredentials.set(key, credential);
+    this.saveOAuthCredentialsToFile();
     console.log(`✓ Stored OAuth credential: ${key}`);
   }
 
@@ -204,6 +259,7 @@ class EmailCredentialStore {
   removeOAuthCredential(key: string): boolean {
     const deleted = this.oauthCredentials.delete(key);
     if (deleted) {
+      this.saveOAuthCredentialsToFile();
       console.log(`✓ Removed OAuth credential: ${key}`);
     }
     return deleted;

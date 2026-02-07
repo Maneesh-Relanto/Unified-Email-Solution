@@ -23,36 +23,14 @@ export const OAuthSettingsForm: React.FC<OAuthSettingsFormProps> = ({
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState(false);
 
-  const handleOAuthLogin = async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      console.log(`[OAuthSettings] Starting ${provider} OAuth flow`);
-      
-      const endpoint = `/auth/${provider}/login?source=settings`;
-      const response = await fetch(endpoint);
-
-      if (!response.ok) {
-        throw new Error(`OAuth endpoint error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      console.log(`[OAuthSettings] Received auth URL from endpoint`);
-
-      if (!data.success || !data.data?.authorizationUrl) {
-        throw new Error('Invalid response from OAuth endpoint');
-      }
-      
-      // Redirect to OAuth provider
-      console.log(`[OAuthSettings] Redirecting to ${provider} authorization`);
-      globalThis.location.href = data.data.authorizationUrl;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error(`[OAuthSettings] Error:`, err);
-      setError(errorMessage);
-      setLoading(false);
-    }
+  const handleOAuthLogin = () => {
+    console.log(`[OAuthSettings] Initiating ${provider} OAuth login`);
+    // Map provider names to OAuth endpoint names
+    // "gmail" → "google", "microsoft" → "microsoft"
+    const oauthProvider = provider === 'gmail' ? 'google' : provider;
+    // Directly redirect to the OAuth login endpoint
+    // The endpoint will handle getting auth URL and redirecting to OAuth provider
+    window.location.href = `/auth/${oauthProvider}/login?source=settings`;
   };
 
   const providerConfig = {

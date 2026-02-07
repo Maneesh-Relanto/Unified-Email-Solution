@@ -137,6 +137,8 @@ export async function getOAuthEmails(req: Request, res: Response) {
     const limit = Number.parseInt(req.query.limit as string) || 20;
     const unreadOnly = req.query.unreadOnly === 'true';
 
+    console.log(`[OAuth Email Fetch] Requesting emails for: ${email}`);
+
     // Find credential in storage (could be google_email or microsoft_email)
     let credential = emailCredentialStore.getOAuthCredential(`google_${email}`);
     if (!credential) {
@@ -144,13 +146,39 @@ export async function getOAuthEmails(req: Request, res: Response) {
     }
 
     if (!credential) {
+      console.error(`[OAuth Email Fetch] No credential found for: ${email}`);
       return res.status(404).json({
         error: 'OAuth credential not found',
         message: `No OAuth credential found for: ${email}. Please authenticate first at /auth/google/login or /auth/microsoft/login`,
       });
     }
 
-    // Create OAuth provider instance
+    console.log(`[OAuth Email Fetch] Found credential for: ${credential.email} (${credential.provider})`);
+
+    // Import decrypt utility
+    const { decrypt } = require('../utils/crypto');
+
+    // Decrypt the stored tokens
+    let accessToken = credential.oauthToken.accessToken;
+    let refreshToken = credential.oauthToken.refreshToken;
+    
+    console.log(`[OAuth Email Fetch] Access token length: ${accessToken.length}, Refresh token: ${refreshToken ? 'present' : 'missing'}`);
+
+    try {
+      accessToken = decrypt(accessToken);
+      if (refreshToken) {
+        refreshToken = decrypt(refreshToken);
+      }
+      console.log(`[OAuth Email Fetch] Tokens decrypted successfully`);
+    } catch (decryptError) {
+      console.error('[OAuth Email Fetch] Decrypt error:', decryptError);
+      return res.status(400).json({
+        error: 'Failed to decrypt OAuth credentials',
+        message: 'Your stored credentials are corrupted. Please re-authenticate.',
+      });
+    }
+
+    // Create OAuth provider instance with decrypted tokens
     const oauthProvider = EmailProviderFactory.createProvider({
       providerType: 'oauth',
       email: credential.email,
@@ -158,26 +186,33 @@ export async function getOAuthEmails(req: Request, res: Response) {
       oauthConfig: {
         clientId: '', // Not needed for fetching with access token
         clientSecret: '', // Not needed for fetching with access token
-        accessToken: credential.oauthToken.accessToken,
-        refreshToken: credential.oauthToken.refreshToken,
+        accessToken,
+        refreshToken,
         expiresAt: credential.oauthToken.expiresAt,
       },
     });
 
+    console.log(`[OAuth Email Fetch] OAuth provider created for: ${credential.provider}`);
+
     // Authenticate and fetch emails
     const authenticated = await oauthProvider.authenticate();
     if (!authenticated) {
+      console.error(`[OAuth Email Fetch] Authentication failed for: ${email}`);
       return res.status(401).json({
         error: 'Authentication failed',
         message: 'Could not authenticate with OAuth provider. Your token may have expired.',
       });
     }
 
+    console.log(`[OAuth Email Fetch] Successfully authenticated for: ${email}`);
+
     // Fetch emails
     const emails = await oauthProvider.fetchEmails({
       limit,
       unreadOnly,
     });
+
+    console.log(`[OAuth Email Fetch] Fetched ${emails.length} emails for: ${email}`);
 
     res.json({
       success: true,
@@ -221,6 +256,21 @@ export async function getAllOAuthEmails(req: Request, res: Response) {
     // Fetch from each account
     for (const credential of allCredentials) {
       try {
+        // Decrypt the stored tokens
+        let accessToken = credential.oauthToken.accessToken;
+        let refreshToken = credential.oauthToken.refreshToken;
+        
+        try {
+          const { decrypt } = require('../utils/crypto');
+          accessToken = decrypt(accessToken);
+          if (refreshToken) {
+            refreshToken = decrypt(refreshToken);
+          }
+        } catch (decryptError) {
+          errors.push(`${credential.email}: Failed to decrypt credentials`);
+          continue;
+        }
+
         const oauthProvider = EmailProviderFactory.createProvider({
           providerType: 'oauth',
           email: credential.email,
@@ -228,8 +278,8 @@ export async function getAllOAuthEmails(req: Request, res: Response) {
           oauthConfig: {
             clientId: '',
             clientSecret: '',
-            accessToken: credential.oauthToken.accessToken,
-            refreshToken: credential.oauthToken.refreshToken,
+            accessToken,
+            refreshToken,
             expiresAt: credential.oauthToken.expiresAt,
           },
         });

@@ -50,11 +50,15 @@ export class OAuthEmailProvider implements EmailProvider {
 
   async authenticate(): Promise<boolean> {
     try {
+      console.log(`[OAuth ${this.provider}] Starting authentication for: ${this.email}`);
+      
       // Check if token is expired and refresh if needed
       await this.ensureValidToken();
+      console.log(`[OAuth ${this.provider}] Token is valid`);
 
       // Verify token works by fetching user profile
       const userInfo = await this.fetchUserProfile();
+      console.log(`[OAuth ${this.provider}] User profile fetched: ${userInfo.email}`);
 
       if (!userInfo.email) {
         console.error('[OAuth Email Provider] Could not verify user email');
@@ -64,7 +68,7 @@ export class OAuthEmailProvider implements EmailProvider {
       console.log(`[OAuth Email Provider] Authenticated successfully: ${userInfo.email}`);
       return true;
     } catch (error) {
-      console.error('[OAuth Email Provider] Authentication failed:', error);
+      console.error(`[OAuth ${this.provider}] Authentication failed:`, error instanceof Error ? error.message : error);
       return false;
     }
   }
@@ -73,7 +77,7 @@ export class OAuthEmailProvider implements EmailProvider {
     try {
       await this.ensureValidToken();
 
-      if (this.provider === 'gmail') {
+      if (this.provider === 'gmail' || this.provider === 'google') {
         return await this.fetchGmailEmails(options);
       } else {
         return await this.fetchOutlookEmails(options);
@@ -88,7 +92,7 @@ export class OAuthEmailProvider implements EmailProvider {
     try {
       await this.ensureValidToken();
 
-      if (this.provider === 'gmail') {
+      if (this.provider === 'gmail' || this.provider === 'google') {
         const action = read ? 'removeLabels' : 'addLabels';
         await this.apiClient.post(
           `https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}/${action}`,
@@ -132,7 +136,7 @@ export class OAuthEmailProvider implements EmailProvider {
   getProviderInfo() {
     return {
       type: 'oauth' as const,
-      displayName: this.provider === 'gmail' ? 'Gmail (OAuth)' : 'Outlook (OAuth)',
+      displayName: this.provider === 'gmail' || this.provider === 'google' ? 'Gmail (OAuth)' : 'Outlook (OAuth)',
       email: this.email,
     };
   }
@@ -140,10 +144,18 @@ export class OAuthEmailProvider implements EmailProvider {
   // ===== Private Methods =====
 
   private async ensureValidToken(): Promise<void> {
+    const nowMs = Date.now();
+    const expiresInMs = this.expiresAt - nowMs;
+    const expiresInMinutes = Math.round(expiresInMs / 60 / 1000);
+    
+    console.log(`[OAuth ${this.provider}] Token check: expires in ${expiresInMinutes} minutes`);
+    
     // Check if token expires within 5 minutes
-    if (this.expiresAt - Date.now() < 5 * 60 * 1000) {
-      console.log('[OAuth Email Provider] Token expired, refreshing...');
+    if (expiresInMs < 5 * 60 * 1000) {
+      console.log('[OAuth Email Provider] Token expired or expiring soon, refreshing...');
       await this.refreshAccessToken();
+    } else {
+      console.log(`[OAuth ${this.provider}] Token is still valid`);
     }
   }
 
@@ -183,15 +195,23 @@ export class OAuthEmailProvider implements EmailProvider {
 
   private async fetchUserProfile(): Promise<{ email: string; name: string }> {
     try {
-      if (this.provider === 'gmail') {
+      if (this.provider === 'gmail' || this.provider === 'google') {
+        console.log('[OAuth gmail] Fetching user profile from Gmail API...');
+        console.log(`[OAuth gmail] Authorization header: Bearer ${this.accessToken.substring(0, 20)}...`);
+        
         const response = await this.apiClient.get(
           'https://www.googleapis.com/oauth2/v2/userinfo'
         );
+        
+        console.log(`[OAuth gmail] Profile response received: ${response.data.email}`);
+        
         return {
           email: response.data.email,
           name: response.data.name || response.data.email,
         };
       } else {
+        console.log('[OAuth microsoft] Fetching user profile from Microsoft Graph...');
+        
         const response = await this.apiClient.get('https://graph.microsoft.com/v1.0/me');
         return {
           email: response.data.userPrincipalName || response.data.mail,
@@ -199,7 +219,7 @@ export class OAuthEmailProvider implements EmailProvider {
         };
       }
     } catch (error) {
-      console.error('[OAuth Email Provider] Error fetching user profile:', error);
+      console.error(`[OAuth ${this.provider}] Error fetching user profile:`, error instanceof Error ? {message: error.message, status: (error as any).response?.status, statusText: (error as any).response?.statusText} : error);
       throw error;
     }
   }
