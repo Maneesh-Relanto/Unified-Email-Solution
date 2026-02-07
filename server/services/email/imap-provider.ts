@@ -20,6 +20,24 @@ export class ImapEmailProvider implements EmailProvider {
 
     this.credentials = credentials;
 
+    console.log('[IMAP] Creating IMAP instance with config:', {
+      user: credentials.imapConfig.username,
+      host: credentials.imapConfig.host,
+      port: credentials.imapConfig.port,
+      tls: true,
+      authTimeout: 5000,
+      connTimeout: 10000,
+    });
+
+    // Create debug logger that definitely outputs
+    const debugLogger = (msg: string) => {
+      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('[IMAP-DEBUG]', msg);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      // Also write to stderr to ensure visibility
+      process.stderr.write(`[IMAP-DEBUG] ${msg}\n`);
+    };
+
     this.imap = new Imap({
       user: credentials.imapConfig.username,
       password: credentials.imapConfig.password,
@@ -32,52 +50,204 @@ export class ImapEmailProvider implements EmailProvider {
       },
       connTimeout: 10000,
       authTimeout: 5000,
-      debug: (str) => console.log('[IMAP]', str), // Enable debug logging
+      debug: debugLogger, // Enable detailed debug logging with enhanced output
     });
 
     this.setupListeners();
   }
 
   private setupListeners(): void {
+    console.log('[IMAP] 📡 Setting up global event listeners...');
+    
     this.imap.on('error', (err) => {
-      console.error('IMAP error:', err);
+      console.error('\n❌❌❌ [IMAP ERROR EVENT] ❌❌❌');
+      console.error('[IMAP] Error message:', err?.message);
+      console.error('[IMAP] Error code:', err?.code);
+      console.error('[IMAP] Error syscall:', err?.syscall);
+      console.error('[IMAP] Error stack:', err?.stack);
+      console.error('[IMAP] Full error object:', JSON.stringify(err, null, 2));
+      console.error('❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌\n');
     });
 
     this.imap.on('expunge', (seqno) => {
-      console.log('Message expunged:', seqno);
+      console.log('[IMAP] 📧 Message expunged:', seqno);
     });
+
+    this.imap.on('alert', (msg) => {
+      console.log('[IMAP] ⚠️  ALERT:', msg);
+    });
+    
+    console.log('[IMAP] ✅ Global listeners set up complete');
   }
 
   async authenticate(): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      try {
-        this.imap.openBox('INBOX', false, (err, box) => {
-          if (err) {
-            console.error('Authentication/Connection failed:', err);
-            this.imap.end();
-            resolve(false);
-          } else {
-            this.authenticated = true;
-            resolve(true);
-          }
-        });
+    return new Promise((resolve) => {
+      let resolved = false;
 
-        // Handle connection errors
-        this.imap.on('error', (err) => {
-          console.error('IMAP connection error during auth:', err);
+      console.log('[IMAP] ========== AUTHENTICATION START ==========');
+      console.log('[IMAP] Email:', this.credentials.email);
+      console.log('[IMAP] Provider:', this.credentials.provider);
+      console.log('[IMAP] IMAP Host:', this.credentials.imapConfig?.host);
+      console.log('[IMAP] IMAP Port:', this.credentials.imapConfig?.port);
+      console.log('[IMAP] Username:', this.credentials.imapConfig?.username);
+
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          console.error('[IMAP] ❌ TIMEOUT after 20 seconds');
+          try {
+            this.imap.end();
+          } catch (e) {
+            console.error('[IMAP] Error ending connection on timeout:', e);
+          }
           resolve(false);
+        }
+      }, 20000);
+
+      try {
+        // Set up all event listeners BEFORE connecting
+        console.log('\n🔵🔵🔵 [IMAP] Setting up authentication event listeners... 🔵🔵🔵\n');
+
+        this.imap.on('ready', () => {
+          console.log('\n✅✅✅ [IMAP] READY EVENT FIRED ✅✅✅');
+          console.log('[IMAP] Connection authenticated successfully!');
+          console.log('[IMAP] Server is ready to accept commands\n');
+          
+          // NOW we can open the mailbox
+          console.log('[IMAP] 📬 Attempting to open INBOX...');
+          this.imap.openBox('INBOX', false, (err, box) => {
+            if (!resolved) {
+              clearTimeout(timeout);
+              resolved = true;
+
+              if (err) {
+                console.error('[IMAP] ❌ Failed to open INBOX:', err.message);
+                console.error('[IMAP] Error details:', {
+                  code: err.code,
+                  errno: err.errno,
+                });
+                try {
+                  this.imap.end();
+                } catch (e) {
+                  console.error('[IMAP] Error ending connection:', e);
+                }
+                resolve(false);
+              } else {
+                console.log('[IMAP] ✅✅ SUCCESS! Mailbox opened');
+                console.log('[IMAP] Mailbox name:', box?.name);
+                console.log('[IMAP] Total messages:', box?.messages?.total);
+                console.log('[IMAP] ========== AUTHENTICATION SUCCESS ==========');
+                this.authenticated = true;
+                resolve(true);
+              }
+            }
+          });
         });
 
-        // Timeout after 10 seconds
-        setTimeout(() => {
-          if (!this.authenticated) {
-            this.imap.end();
+        this.imap.on('error', (err: any) => {
+          console.error('\n🔴🔴🔴 [IMAP] ERROR EVENT FIRED DURING AUTH 🔴🔴🔴');
+          console.error('[IMAP] Error message:', err?.message);
+          console.error('[IMAP] Error code:', err?.code);
+          console.error('[IMAP] Error source:', err?.source);
+          console.error('[IMAP] Error syscall:', err?.syscall);
+          console.error('[IMAP] Error errno:', err?.errno);
+          console.error('[IMAP] Error textCode:', err?.textCode);
+          
+          // Check for specific Outlook/Microsoft errors
+          if (err?.textCode?.key) {
+            const errorKey = err.textCode.key.toString();
+            
+            if (errorKey.includes('BasicAuthBlocked')) {
+              console.error('\n🚨🚨🚨 MICROSOFT BASIC AUTH BLOCKED 🚨🚨🚨');
+              console.error('┌─────────────────────────────────────────────────────────┐');
+              console.error('│ Microsoft is blocking basic authentication (username/  │');
+              console.error('│ password) for IMAP access to this Outlook account.     │');
+              console.error('│                                                         │');
+              console.error('│ SOLUTION: Generate an App Password                     │');
+              console.error('│ 1. Go to: account.microsoft.com → Security            │');
+              console.error('│ 2. Enable 2-step verification (if not already on)     │');
+              console.error('│ 3. Generate "App password" for "Mail"                 │');
+              console.error('│ 4. Use that app password instead of regular password  │');
+              console.error('└─────────────────────────────────────────────────────────┘\n');
+            }
+            
+            if (errorKey.includes('LogonDenied')) {
+              console.error('⚠️  Login denied by server');
+            }
+            
+            if (errorKey.includes('AuthFailed')) {
+              console.error('⚠️  Authentication failed on server side');
+            }
+          } else if (err?.message === 'LOGIN failed.') {
+            // Generic login failure - likely IMAP not enabled or wrong credentials
+            console.error('\n⚠️⚠️⚠️  GENERIC LOGIN FAILURE ⚠️⚠️⚠️');
+            console.error('┌─────────────────────────────────────────────────────────┐');
+            console.error('│ The server rejected the login credentials.             │');
+            console.error('│                                                         │');
+            console.error('│ MOST COMMON CAUSES:                                    │');
+            console.error('│ 1. IMAP not enabled in Outlook settings (MOST LIKELY) │');
+            console.error('│ 2. Incorrect app password                              │');
+            console.error('│ 3. App password expired                                │');
+            console.error('│ 4. Wrong email address                                 │');
+            console.error('│                                                         │');
+            console.error('│ FIRST ACTION: Enable IMAP                              │');
+            console.error('│ • outlook.com → Settings → Sync email                  │');
+            console.error('│ • Enable "Let devices and apps use IMAP"               │');
+            console.error('│ • Wait 2-3 minutes and try again                       │');
+            console.error('└─────────────────────────────────────────────────────────┘\n');
+          }
+          
+          console.error('[IMAP] Full error object:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
+          console.error('[IMAP] Stack trace:', err?.stack);
+          console.error('🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴\n');
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeout);
+            try {
+              this.imap.end();
+            } catch (e) {
+              console.error('[IMAP] Error ending connection:', e);
+            }
             resolve(false);
           }
-        }, 10000);
+        });
+
+        this.imap.on('end', () => {
+          console.log('\n⚪ [IMAP] END event - connection closed by server');
+        });
+
+        this.imap.on('close', (hadError: boolean) => {
+          console.log('\n⚪ [IMAP] CLOSE event - connection terminated', hadError ? '❌ WITH ERROR' : '✅ normally');
+          if (hadError) {
+            console.log('[IMAP] Connection closed due to error condition');
+          }
+        });
+
+        // CRITICAL: Actually initiate the connection!
+        console.log('\n🚀🚀🚀 [IMAP] INITIATING CONNECTION 🚀🚀🚀');
+        console.log('[IMAP] Target:', this.credentials.imapConfig?.host + ':' + this.credentials.imapConfig?.port);
+        console.log('[IMAP] User:', this.credentials.imapConfig?.username);
+        console.log('[IMAP] TLS: Enabled');
+        console.log('[IMAP] Calling connect() now...\n');
+        
+        this.imap.connect();
+        
+        console.log('\n✅ [IMAP] connect() method called successfully');
+        console.log('[IMAP] Waiting for server response...');
+        console.log('[IMAP] Expecting: ready, error, end, or close events\n');
+
       } catch (error) {
-        console.error('Authentication error:', error);
-        resolve(false);
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          console.error('[IMAP] ❌ EXCEPTION during authentication setup:', error);
+          try {
+            this.imap.end();
+          } catch (e) {
+            console.error('[IMAP] Error ending connection:', e);
+          }
+          resolve(false);
+        }
       }
     });
   }

@@ -34,22 +34,23 @@ export function createServer() {
   app.get("/api/demo", handleDemo);
 
   // Email API routes (IMAP/OAuth/etc)
+  // IMPORTANT: Specific routes must come BEFORE parameterized routes
   app.post("/api/email/init", initializeProviders);
   app.get("/api/email/all", getAllEmails);
-  app.get("/api/email/:emailAddress", getEmailsByProvider);
   app.get("/api/email/accounts", getAccounts);
   
-  // Settings endpoints
+  // Settings endpoints - specific before parameterized
   app.get("/api/email/configured", getConfiguredAccounts);
-  app.get("/api/email/provider/:provider", getAccountsByProvider);
   app.post("/api/email/add", addEmailAccount);
-  app.delete("/api/email/account/:email", removeEmailAccount);
   app.post("/api/email/test", testConnection);
   app.post("/api/email/test-with-progress", testConnectionWithProgress);
-  
-  // Utility endpoints
   app.post("/api/email/cache/clear", clearCache);
   app.post("/api/email/disconnect-all", disconnectAll);
+  app.delete("/api/email/account/:email", removeEmailAccount);
+  
+  // Parameterized routes come LAST
+  app.get("/api/email/provider/:provider", getAccountsByProvider);
+  app.get("/api/email/:emailAddress", getEmailsByProvider);
 
   return app;
 }

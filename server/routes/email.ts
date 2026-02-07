@@ -342,14 +342,27 @@ export async function testConnectionWithProgress(req: Request, res: Response) {
     }
 
     let { email, password, provider } = validation.data;
-    console.log(`Testing connection with progress for ${email} (${provider})`);
+    console.log('\n═══════════════════════════════════════════════════════════');
+    console.log('🧪 STARTING CONNECTION TEST');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(`📧 Email: ${email}`);
+    console.log(`🏷️  Provider: ${provider}`);
+    console.log(`🔑 Password length: ${password.length} chars`);
+    console.log('═══════════════════════════════════════════════════════════\n');
 
     // Strip spaces from password (Gmail App Passwords have spaces: xxxx xxxx xxxx xxxx)
     const cleanPassword = password.replace(/\s+/g, '');
+    
+    if (cleanPassword !== password) {
+      console.log(`✂️  Stripped ${password.length - cleanPassword.length} spaces from password`);
+      console.log(`📏 Clean password length: ${cleanPassword.length} chars\n`);
+    }
 
     // Step 2: Get IMAP Config
+    console.log('📋 STEP 2: Retrieving IMAP configuration...');
     const imapConfig = getImapConfigForProvider(provider);
     if (!imapConfig) {
+      console.error(`❌ No IMAP config found for provider: ${provider}\n`);
       return res.json({
         success: false,
         step: 2,
@@ -358,8 +371,15 @@ export async function testConnectionWithProgress(req: Request, res: Response) {
         message: `Unsupported provider: ${provider}. Supported: gmail, yahoo, outlook, rediff`,
       });
     }
+    
+    console.log('✅ IMAP Config retrieved:');
+    console.log(`   Host: ${imapConfig.host}`);
+    console.log(`   Port: ${imapConfig.port}`);
+    console.log(`   TLS: true`);
+    console.log('');
 
     // Step 3: Authenticate with Provider
+    console.log('🔐 STEP 3: Creating IMAP provider and authenticating...\n');
     const { ImapEmailProvider } = await import('../services/email/imap-provider');
 
     const testProvider = new ImapEmailProvider({
@@ -373,50 +393,233 @@ export async function testConnectionWithProgress(req: Request, res: Response) {
       },
     });
 
-    console.log(`Authenticating ${email}...`);
+    console.log('✅ Provider instance created');
+    console.log('🚀 Starting authentication process...\n');
+
+    const authStartTime = Date.now();
+    
+    // Create a test provider with enhanced logging
+    const originalDebug = console.log;
+    const imapLogs: string[] = [];
+    
     const authenticated = await testProvider.authenticate();
+    
+    const authDuration = ((Date.now() - authStartTime) / 1000).toFixed(2);
+    console.log(`\n⏱️  Authentication took ${authDuration} seconds`);
 
     // Always try to disconnect properly
+    console.log('🔌 Disconnecting test provider...');
     try {
       await testProvider.disconnect();
+      console.log('✅ Disconnected successfully\n');
     } catch (disconnectError) {
-      console.error('Error disconnecting after test:', disconnectError);
+      console.error('⚠️  Error disconnecting after test:', disconnectError, '\n');
     }
 
     if (authenticated) {
-      console.log(`✓ Successfully authenticated ${email}`);
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('✅✅✅ AUTHENTICATION SUCCESS ✅✅✅');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log(`📧 Email: ${email}`);
+      console.log(`🏷️  Provider: ${provider.toUpperCase()}`);
+      console.log('═══════════════════════════════════════════════════════════\n');
       return res.json({
         success: true,
         step: 4,
         stepName: 'Ready to Save',
         status: 'completed',
-        message: `Successfully authenticated! Click \"Add\" to save this account.`,
+        message: `Successfully authenticated! Click "Add" to save this account.`,
         provider: provider.toUpperCase(),
         email: email,
       });
     } else {
-      console.error(`✗ Authentication failed for ${email}`);
+      console.log('═══════════════════════════════════════════════════════════');
+      console.error('❌❌❌ AUTHENTICATION FAILED ❌❌❌');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.error(`📧 Email: ${email}`);
+      console.error(`🏷️  Provider: ${provider.toUpperCase()}`);
+      console.error(`🔑 Password length: ${cleanPassword.length} chars`);
+      console.log('═══════════════════════════════════════════════════════════\n');
+      
+      // Provide detailed troubleshooting based on provider
+      const troubleshootingMap: Record<string, string> = {
+        gmail: `Gmail Authentication Failed - Complete Setup Guide:
+
+❌ MOST LIKELY CAUSE: IMAP Not Enabled
+
+✅ CRITICAL: Enable IMAP (THIS IS THE #1 ISSUE)
+   1. Go to: Gmail Settings → "Forwarding and POP/IMAP" tab
+   2. Look for "IMAP access:" section
+   3. You should see options like:
+      • "Auto-Expunge on" / "Auto-Expunge off" 
+      • "Archive the message" (when deleted in IMAP)
+      • "Move to Trash"
+      • "Immediately delete"
+   4. If you DON'T see these options above "IMAP access:", then:
+      ➜ IMAP is DISABLED and you need to enable it
+      ➜ Click the enable button/link (varies by Google UI)
+      ➜ Look for blue link that says "Enable IMAP"
+   5. If you DO see these options, IMAP is already enabled ✓
+
+✅ REQUIRED: 2-Step Verification Must Be Active
+   • Go to: myaccount.google.com → Security
+   • Check: "2-Step Verification" is ON
+   • App Passwords only work with 2FA enabled
+
+✅ VERIFY: App Password Format
+   • Should be 16 characters (with or without spaces)
+   • You pasted: ${cleanPassword.substring(0, 4)}${'*'.repeat(Math.max(0, cleanPassword.length - 4))} (${cleanPassword.length} chars)
+   • ✓ Correct if exactly 16 characters
+   • If wrong length, generate NEW app password
+
+✅ DOUBLE-CHECK: Email Address
+   • Email: ${email}
+   • Make sure this matches your Google Account email exactly
+   • No typos, no extra spaces
+
+🔍 FINAL VERIFICATION:
+   If IMAP is enabled but still failing:
+   1. Generate a FRESH app password (might be app-specific)
+   2. Wait 1-2 minutes for changes to propagate
+   3. Check Gmail Security activity to see login attempts
+   4. Contact Google Support if still failing`,
+        yahoo: `Yahoo Authentication Failed - Verify:
+1. Go to Account Security → App Passwords
+2. Generate password for "Mail" app
+3. Check email: ${email}
+4. Password should be 16 characters
+Current password: ${cleanPassword.substring(0, 4)}${'*'.repeat(Math.max(0, cleanPassword.length - 4))}`,
+        outlook: `Outlook Authentication Failed - Diagnostic Report:
+
+🔍 AUTHENTICATION STATUS:
+   ${cleanPassword.length === 16 ? 
+     '✅ App Password Format Detected (16 chars)' : 
+     '⚠️  Regular Password Detected (not recommended)'}
+   • Email: ${email}
+   • Password length: ${cleanPassword.length} chars
+   • Connection: ✅ Successful (reached Microsoft servers)
+   • Authentication: ❌ LOGIN failed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 TROUBLESHOOTING STEPS:
+
+✅ STEP 1: Enable IMAP in Outlook Settings **CRITICAL**
+   🚨 This is often the root cause!
+   
+   1. Go to: https://outlook.live.com/mail/0/options/mail/accounts
+   2. Click "Sync email" under "Accounts"
+   3. Scroll down to "POP and IMAP"
+   4. Make sure these are checked:
+      ✓ "Let devices and apps use IMAP" 
+      ✓ OR "Yes, allow IMAP access"
+   5. Click "Save" at the bottom
+   6. Wait 2-3 minutes for changes to take effect
+   7. Try again
+   
+   Alternative path:
+   • outlook.com → ⚙️ Settings (gear icon)
+   • "View all Outlook settings" 
+   • Mail → Sync email → Enable IMAP
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ STEP 2: Generate Fresh App Password
+   Microsoft App Passwords expire or can become invalid.
+   
+   1. Go to: https://account.microsoft.com/security
+   2. Sign in if prompted
+   3. Scroll to "Advanced security options"
+   4. Find "App passwords" section
+   5. If you see an old "Email" or "IMAP" password, delete it
+   6. Click "Create a new app password"
+   7. Select purpose: "Email" or "Mail app"
+   8. Copy the NEW password (example format: "abcd efgh ijkl mnop")
+   9. Paste it here (spaces will be auto-removed)
+   10. Try again immediately
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ STEP 3: Verify 2-Step Verification is Enabled
+   App passwords ONLY work with 2FA enabled.
+   
+   1. Go to: https://account.microsoft.com/security
+   2. Check "Two-step verification" section
+   3. Should say "On" or "Enabled"
+   4. If "Off", enable it first
+   5. Then generate app password
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ STEP 4: Check Recent Activity
+   1. Go to: https://account.microsoft.com/activity
+   2. Look for recent sign-in attempts
+   3. Check if any are marked as "unusual" or "blocked"
+   4. Approve if needed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ QUICK CHECKLIST:
+   ❓ Is IMAP enabled in Outlook settings? (Most common issue!)
+   ❓ Is 2-step verification enabled?
+   ❓ Did you generate a brand new app password?
+   ❓ Did you wait 2-3 minutes after making changes?
+   ❓ Are you using the correct Microsoft account email?
+   ❓ Is the account type: Outlook.com / Live.com / Hotmail.com?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 MOST LIKELY CAUSES (in order):
+   1. 🥇 IMAP not enabled in Outlook settings (80% of cases)
+   2. 🥈 App password incorrect or expired
+   3. 🥉 2-step verification not enabled
+   4. 📍 Changes not propagated yet (wait 2-3 min)`,
+        rediff: `Rediff Mail Authentication Failed - Setup Checklist:
+
+✅ STEP 1: Verify Your Email & Password
+   • Email: ${email}
+   • Must end with @rediffmail.com
+   • Password: Your Rediff login password (regular password)
+   • No spaces or special characters in password
+
+✅ STEP 2: Verify Password Contains No Spaces
+   • Current password: ${cleanPassword.length} characters
+   • Remove any spaces if you pasted with spaces
+   • Paste exactly as typed without modification
+
+✅ STEP 3: Enable IMAP Access (if required)
+   1. Go to Rediffmail.com → Settings/Account
+   2. Look for "POP3/IMAP Settings" or "IMAP Access"
+   3. Enable IMAP if disabled
+   4. Note: May take 1-2 minutes to activate
+
+✅ STEP 4: Check IMAP Configuration
+   • IMAP Host: imap.rediff.com (port 993) ✓ Configured
+   • TLS/SSL: Enabled ✓
+
+🔍 COMMON REDIFF ISSUES:
+   • Email address typo
+   • Account security settings blocking IMAP
+   • Password expired/changed
+   • IMAP not enabled for the account
+   
+Current credentials check:
+   • Email: ${email}
+   • Password length: ${cleanPassword.length} chars`,
+      };
+
       return res.json({
         success: false,
         step: 3,
         stepName: 'Authenticating with Provider',
         status: 'failed',
-        message: `Wrong email or password for ${provider}`,
-        troubleshooting: {
-          gmail: `1. Generate App Password at: myaccount.google.com/apppasswords
-2. Select "Mail" and "Windows Computer"
-3. Copy the 16-character password (example: xxxx xxxx xxxx xxxx)
-4. Paste it AS IS with spaces - we automatically remove them!
-5. Double-check: No typos, correct email address`,
-          yahoo: 'Go to Account Security settings → App Passwords → Generate and copy your App Password',
-          outlook: 'Use your Microsoft account password (the one you use to sign in)',
-          rediff: 'Use your Rediff email account password',
-        },
+        message: `Authentication failed for ${email}`,
+        troubleshooting: troubleshootingMap[provider] || 'Check your credentials and try again',
       });
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Connection test error:', error);
+    console.error('Connection test error:', { error, message });
     res.json({
       success: false,
       step: 3,

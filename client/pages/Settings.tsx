@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Mail, Trash2, Plus, AlertCircle, CheckCircle, Loader, ChevronRight, ArrowLeft } from "lucide-react";
+import { Settings, Mail, Trash2, Plus, AlertCircle, CheckCircle, Loader, ChevronRight, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
@@ -150,6 +150,7 @@ export default function SettingsPage() {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [progressData, setProgressData] = useState<any>(null);
   const [removingEmail, setRemovingEmail] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Fetch configured accounts on load
   const fetchAccounts = async () => {
@@ -264,8 +265,6 @@ export default function SettingsPage() {
       setRemovingEmail(null);
     }
   };
-
-  const getProvider = (id: string) => PROVIDERS.find((p) => p.id === id);
 
   const getProvider = (id: string) => PROVIDERS.find((p) => p.id === id);
 
@@ -446,13 +445,27 @@ export default function SettingsPage() {
                   <label className="block text-sm font-medium mb-2">
                     {selectedProvider === "gmail" ? "App Password" : "Password"}
                   </label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder={selectedProvider === "gmail" ? "xxxx xxxx xxxx xxxx" : "Enter password"}
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder={selectedProvider === "gmail" ? "xxxx xxxx xxxx xxxx" : "Enter password"}
+                      className="w-full px-3 py-2 pr-10 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                   {selectedProvider === "gmail" && (
                     <div className="mt-3 space-y-2">
                       <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
