@@ -34,11 +34,12 @@ export const OAuthLoginComponent: React.FC<OAuthLoginComponentProps> = ({
       
       const response = await fetch(endpoint);
       console.log(`[OAuth] Response status: ${response.status}`);
+      console.log(`[OAuth] Response headers:`, response.headers);
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`[OAuth] HTTP Error: ${response.status} - ${errorText}`);
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -46,6 +47,7 @@ export const OAuthLoginComponent: React.FC<OAuthLoginComponentProps> = ({
 
       if (!data.success) {
         const errorMsg = data.error || data.message || 'Authorization request failed';
+        console.error(`[OAuth] Success flag is false:`, data);
         throw new Error(errorMsg);
       }
 
@@ -60,6 +62,8 @@ export const OAuthLoginComponent: React.FC<OAuthLoginComponentProps> = ({
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.error(`[OAuth] Error for ${provider}:`, err);
+      console.error(`[OAuth] Error message:`, errorMessage);
+      console.error(`[OAuth] Error stack:`, err instanceof Error ? err.stack : 'N/A');
       setError(errorMessage);
       onAuthError?.(errorMessage);
     } finally {
