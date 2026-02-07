@@ -15,37 +15,40 @@ import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { SecurityProvider } from "@/hooks/use-security";
 import { SecurityOverlay } from "@/components/SecurityOverlay";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <ThemeProvider>
-    <SecurityProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <SecurityOverlay />
-          <BrowserRouter>
-            <div
-              className="h-screen w-screen overflow-hidden"
-              data-page-wrapper
-            >
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/unified-inbox" element={<UnifiedInbox />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/oauth-integration" element={<OAuthIntegration />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </div>
-          </BrowserRouter>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </SecurityProvider>
-  </ThemeProvider>
+  <ErrorBoundary>
+    <ThemeProvider>
+      <SecurityProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <SecurityOverlay />
+            <BrowserRouter>
+              <div
+                className="h-screen w-screen overflow-hidden"
+                data-page-wrapper
+              >
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/unified-inbox" element={<UnifiedInbox />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/oauth-integration" element={<OAuthIntegration />} />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </div>
+            </BrowserRouter>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </SecurityProvider>
+    </ThemeProvider>
+  </ErrorBoundary>
 );
 
 declare global {
