@@ -225,6 +225,7 @@ export class OAuthEmailProvider implements EmailProvider {
   private async fetchGmailEmails(options?: FetchEmailsOptions): Promise<ParsedEmail[]> {
     try {
       const limit = options?.limit || 20;
+      const skip = options?.skip || 0;
       const unreadOnly = options?.unreadOnly || false;
 
       // Build query
@@ -237,28 +238,35 @@ export class OAuthEmailProvider implements EmailProvider {
         query += ` after:${sinceDate}`;
       }
 
+      // For Gmail, we need to fetch enough emails to handle skip offset
+      // Since Gmail doesn't have a native offset parameter, we fetch more and slice
+      const fetchLimit = limit + skip; // Fetch extra to handle offset
+
       // Get message list
       const listResponse = await this.apiClient.get(
         'https://www.googleapis.com/gmail/v1/users/me/messages',
         {
           params: {
             q: query,
-            maxResults: limit,
+            maxResults: Math.min(fetchLimit, 100), // Gmail API has max 100 per request
           },
         }
       );
 
-      const messageIds = listResponse.data.messages || [];
+      let messageIds = listResponse.data.messages || [];
       
       if (messageIds.length === 0) {
         console.log('[OAuth Email Provider] No Gmail emails found');
         return [];
       }
 
+      // Apply offset (skip) manually
+      messageIds = messageIds.slice(skip, skip + limit);
+
       // Fetch full message details
       const emails: ParsedEmail[] = [];
 
-      for (const msg of messageIds.slice(0, limit)) {
+      for (const msg of messageIds) {
         try {
           const emailData = await this.fetchGmailMessage(msg.id);
           if (emailData) {
@@ -270,7 +278,7 @@ export class OAuthEmailProvider implements EmailProvider {
         }
       }
 
-      console.log(`[OAuth Email Provider] Fetched ${emails.length} Gmail emails`);
+      console.log(`[OAuth Email Provider] Fetched ${emails.length} Gmail emails (skip: ${skip}, limit: ${limit})`);
       return emails;
     } catch (error) {
       console.error('[OAuth Email Provider] Error fetching Gmail emails:', error);
@@ -338,13 +346,15 @@ export class OAuthEmailProvider implements EmailProvider {
   private async fetchOutlookEmails(options?: FetchEmailsOptions): Promise<ParsedEmail[]> {
     try {
       const limit = options?.limit || 20;
+      const skip = options?.skip || 0;
 
       let filter = '';
       if (options?.unreadOnly) {
         filter = '&$filter=isRead eq false';
       }
 
-      let url = `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$top=${limit}&$orderby=receivedDateTime desc${filter}`;
+      // Microsoft Graph supports $skip and $top for pagination
+      let url = `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$top=${limit}&$skip=${skip}&$orderby=receivedDateTime desc${filter}`;
 
       const response = await this.apiClient.get(url);
       const messages = response.data.value || [];
@@ -368,7 +378,7 @@ export class OAuthEmailProvider implements EmailProvider {
         };
       });
 
-      console.log(`[OAuth Email Provider] Fetched ${emails.length} Outlook emails`);
+      console.log(`[OAuth Email Provider] Fetched ${emails.length} Outlook emails (skip: ${skip}, limit: ${limit})`);
       return emails;
     } catch (error) {
       console.error('[OAuth Email Provider] Error fetching Outlook emails:', error);

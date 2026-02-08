@@ -135,6 +135,7 @@ export async function getOAuthEmails(req: Request, res: Response) {
   try {
     const { email } = req.params;
     const limit = Number.parseInt(req.query.limit as string) || 20;
+    const skip = Number.parseInt(req.query.skip as string) || 0;
     const unreadOnly = req.query.unreadOnly === 'true';
 
     console.log(`[OAuth Email Fetch] Requesting emails for: ${email}`);
@@ -209,10 +210,11 @@ export async function getOAuthEmails(req: Request, res: Response) {
     // Fetch emails
     const emails = await oauthProvider.fetchEmails({
       limit,
+      skip,
       unreadOnly,
     });
 
-    console.log(`[OAuth Email Fetch] Fetched ${emails.length} emails for: ${email}`);
+    console.log(`[OAuth Email Fetch] Fetched ${emails.length} emails for: ${email} (skip: ${skip}, limit: ${limit})`);
 
     res.json({
       success: true,
@@ -220,6 +222,7 @@ export async function getOAuthEmails(req: Request, res: Response) {
       email: credential.email,
       count: emails.length,
       emails,
+      hasMore: emails.length === limit, // If we got full limit, there might be more
     });
   } catch (error) {
     console.error('[OAuth Email Fetch Error]', error);
@@ -277,6 +280,7 @@ async function fetchEmailsFromProvider(
     return { emails: [], error: `${credential.email}: Authentication failed` };
   }
 
+  console.log(`[fetchEmailsFromProvider] Fetching emails for ${credential.email} (skip: ${skip}, limit: ${limit})`);
   const emails = await oauthProvider.fetchEmails({ limit, skip, unreadOnly });
   return { emails };
 }
