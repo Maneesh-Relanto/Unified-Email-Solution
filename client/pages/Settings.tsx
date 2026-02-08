@@ -23,11 +23,34 @@ interface ProgressStep {
 type SettingsTab = "accounts" | "add-account" | "help";
 
 const PROVIDERS = [
-  { id: "gmail", name: "Gmail", icon: "📧", color: "bg-red-500" },
-  { id: "yahoo", name: "Yahoo", icon: "📨", color: "bg-purple-500" },
-  { id: "outlook", name: "Outlook", icon: "📬", color: "bg-blue-500" },
-  { id: "rediff", name: "Rediff", icon: "🔴", color: "bg-red-600" },
+  { id: "gmail", name: "Gmail", icon: "📧", color: "bg-red-500", logo: "/gmail-logo.svg" },
+  { id: "yahoo", name: "Yahoo", icon: "📨", color: "bg-purple-500", logo: null },
+  { id: "outlook", name: "Outlook", icon: "📬", color: "bg-blue-500", logo: "/outlook-logo.svg" },
+  { id: "rediff", name: "Rediff", icon: "🔴", color: "bg-red-600", logo: null },
 ];
+
+/**
+ * Renders provider logo or icon based on availability
+ */
+function ProviderIcon({ provider, size = "w-12 h-12", showBg = true }: Readonly<{ provider: typeof PROVIDERS[0] | undefined, size?: string, showBg?: boolean }>) {
+  if (!provider) return null;
+
+  // Use logo image if available
+  if (provider.logo) {
+    return (
+      <div className={`${size} flex items-center justify-center flex-shrink-0 shadow-md ${showBg ? 'rounded-full bg-white dark:bg-slate-800 p-1' : ''}`}>
+        <img src={provider.logo} alt={provider.name} className="w-full h-full object-contain" />
+      </div>
+    );
+  }
+
+  // Fallback to emoji icon with background color
+  return (
+    <div className={`${provider.color} text-white rounded-full ${size} flex items-center justify-center text-xl flex-shrink-0 shadow-md`}>
+      {provider.icon}
+    </div>
+  );
+}
 
 const PROGRESS_STEPS = [
   { step: 1, stepName: "Validating Input", description: "Checking email format and password" },
@@ -545,9 +568,7 @@ export default function SettingsPage() {
                             className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/50 hover:border-primary/50 transition-all"
                           >
                             <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className={`${provider?.color} text-white rounded-full w-12 h-12 flex items-center justify-center text-xl flex-shrink-0 shadow-md`}>
-                                {provider?.icon}
-                              </div>
+                              <ProviderIcon provider={provider} size="w-12 h-12" showBg={true} />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <p className="text-base font-semibold text-foreground truncate">{account.email}</p>
@@ -610,9 +631,7 @@ export default function SettingsPage() {
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4">
-                            <div className={`${provider.color} text-white rounded-full w-14 h-14 flex items-center justify-center text-3xl`}>
-                              {provider.icon}
-                            </div>
+                            <ProviderIcon provider={provider} size="w-14 h-14" showBg={true} />
                             <div>
                               <p className="font-semibold text-lg">{provider.name}</p>
                               <p className="text-xs text-muted-foreground">Click to add account</p>
@@ -638,9 +657,7 @@ export default function SettingsPage() {
                       </button>
 
                       <div className="flex items-center gap-4 mb-6">
-                        <div className={`${getProvider(selectedProvider)?.color} text-white rounded-full w-14 h-14 flex items-center justify-center text-3xl`}>
-                          {getProvider(selectedProvider)?.icon}
-                        </div>
+                        <ProviderIcon provider={getProvider(selectedProvider)} size="w-14 h-14" showBg={true} />
                         <div>
                           <h3 className="text-lg font-semibold">
                             Add {getProvider(selectedProvider)?.name} Account
