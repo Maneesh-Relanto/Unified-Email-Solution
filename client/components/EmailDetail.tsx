@@ -159,12 +159,20 @@ export function EmailDetail({ email, onClose, onEmailAction, userEmail, provider
           )}
         </div>
 
-        {/* Email Body */}
+        {/* Email Body - Full Content with HTML Support */}
         <div className="px-6 py-6">
-          <div className="prose prose-sm max-w-none">
-            <p className="text-gray-700 whitespace-pre-wrap break-words leading-relaxed">
-              {email.preview}
-            </p>
+          <div className="prose prose-sm max-w-none break-words">
+            {/* Check if content looks like HTML */}
+            {email.preview && email.preview.includes("<") && email.preview.includes(">") ? (
+              <div
+                className="text-gray-700 whitespace-pre-wrap leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: email.preview }}
+              />
+            ) : (
+              <p className="text-gray-700 whitespace-pre-wrap break-words leading-relaxed">
+                {email.preview}
+              </p>
+            )}
           </div>
         </div>
 

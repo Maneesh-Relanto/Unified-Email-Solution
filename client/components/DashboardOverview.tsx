@@ -195,21 +195,8 @@ export function DashboardOverview({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-border bg-card flex items-center justify-between">
-        <p className="text-muted-foreground">
-          View and manage emails from all your accounts
-        </p>
-        <Button asChild size="sm">
-          <Link to="/unified-inbox" className="gap-2">
-            <Inbox className="w-4 h-4" />
-            Unified Inbox
-          </Link>
-        </Button>
-      </div>
-
       {/* Cards Grid */}
-      <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
+      <div className="flex-1 overflow-auto p-6 flex flex-col items-center justify-start">
         {providers.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 text-center max-w-md py-12">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">

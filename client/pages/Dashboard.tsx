@@ -39,12 +39,9 @@ export default function Dashboard() {
           <div>
             {isOverviewMode ? (
               <>
-                <h2 className="text-2xl font-bold text-foreground">
+                <h1 className="text-3xl font-bold text-foreground">
                   Dashboard
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Select an email provider to view
-                </p>
+                </h1>
               </>
             ) : (
               <>
@@ -58,16 +55,18 @@ export default function Dashboard() {
               </>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {isOverviewMode ? (
               <Button
                 asChild
-                variant="outline"
+                variant="default"
                 size="sm"
                 title="View unified inbox"
+                className="gap-2"
               >
-                <Link to="/unified-inbox" className="gap-2">
+                <Link to="/unified-inbox">
                   <Inbox className="w-4 h-4" />
+                  <span className="hidden sm:inline">Unified Inbox</span>
                 </Link>
               </Button>
             ) : (
@@ -76,18 +75,22 @@ export default function Dashboard() {
                 size="sm"
                 onClick={() => setSelectedProviderId(undefined)}
                 title="Back to dashboard overview"
+                className="gap-2"
               >
                 <LayoutGrid className="w-4 h-4" />
+                <span className="hidden sm:inline">Overview</span>
               </Button>
             )}
-            <Button asChild variant="outline" size="sm" title="Settings">
+            <Button asChild variant="outline" size="sm" title="Settings" className="gap-2">
               <Link to="/settings">
                 <Settings className="w-4 h-4" />
+                <span className="hidden sm:inline">Settings</span>
               </Link>
             </Button>
-            <Button asChild variant="outline" size="sm" title="Go to home page">
+            <Button asChild variant="outline" size="sm" title="Go to home page" className="gap-2">
               <Link to="/">
                 <Home className="w-4 h-4" />
+                <span className="hidden sm:inline">Home</span>
               </Link>
             </Button>
             <ThemeDropdown />
