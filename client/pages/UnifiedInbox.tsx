@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { UnifiedSidebar } from "@/components/UnifiedSidebar";
 import { EmailList } from "@/components/EmailList";
+import { EmailDetail } from "@/components/EmailDetail";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
 import { StatusBar, useStatusBar } from "@/components/StatusBar";
@@ -640,8 +641,8 @@ export default function UnifiedInbox() {
           </div>
         </div>
 
-        {/* Email List */}
-        <div className="flex-1 overflow-hidden flex flex-col">
+        {/* Email List & Detail Split Pane */}
+        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
           {error && (
             <ErrorAlert
               message={error}
@@ -657,7 +658,7 @@ export default function UnifiedInbox() {
             />
           )}
           {providers.length === 0 ? (
-            <div className="flex items-center justify-center h-full flex-col">
+            <div className="flex items-center justify-center h-full flex-col w-full">
               <div className="text-center">
                 <p className="text-muted-foreground mb-4">No email accounts connected</p>
                 <Button asChild>
@@ -666,53 +667,73 @@ export default function UnifiedInbox() {
               </div>
             </div>
           ) : loadingEmails && sortedEmails.length === 0 ? (
-            <div className="flex items-center justify-center flex-1">
+            <div className="flex items-center justify-center flex-1 w-full">
               <div className="text-center">
                 <Loader className="w-8 h-8 animate-spin text-primary mx-auto mb-2" />
                 <p className="text-muted-foreground">Loading emails...</p>
               </div>
             </div>
           ) : sortedEmails.length === 0 ? (
-            <div className="flex items-center justify-center flex-1">
+            <div className="flex items-center justify-center flex-1 w-full">
               <div className="text-center">
                 <p className="text-muted-foreground">No emails to display</p>
               </div>
             </div>
           ) : (
             <>
-              <div className="flex-1 overflow-hidden">
-                <EmailList
-                  emails={displayedEmails}
-                  selectedEmailId={selectedEmailId}
-                  onEmailSelect={(email) => setSelectedEmailId(email.id)}
-                />
-              </div>
-              
-              {/* Load More Button */}
-              {hasMore && !loadingEmails && (
-                <div className="border-t border-border bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 px-6 py-4">
-                  <Button
-                    onClick={loadMoreEmails}
-                    disabled={loadingMore}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 text-base shadow-lg hover:shadow-xl transition-all"
-                    size="lg"
-                  >
-                    {loadingMore ? (
-                      <>
-                        <Loader className="w-5 h-5 animate-spin mr-2" />
-                        Loading more emails...
-                      </>
-                    ) : (
-                      <>
-                        📨 Load More ({LOAD_MORE_BATCH} more)
-                      </>
-                    )}
-                  </Button>
-                  <p className="text-center text-xs text-muted-foreground mt-2">
-                    {sortedEmails.length} emails loaded so far
-                  </p>
+              {/* Mobile: Show email detail when selected */}
+              {selectedEmailId && (
+                <div className="lg:hidden absolute inset-0 bg-white z-10">
+                  <EmailDetail
+                    email={sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined}
+                    onClose={() => setSelectedEmailId(undefined)}
+                  />
                 </div>
               )}
+
+              {/* Left Pane: Email List */}
+              <div className={`w-full lg:w-2/5 flex flex-col overflow-hidden ${selectedEmailId && "hidden lg:flex"}`}>
+                <div className="flex-1 overflow-hidden">
+                  <EmailList
+                    emails={displayedEmails}
+                    selectedEmailId={selectedEmailId}
+                    onEmailSelect={(email) => setSelectedEmailId(email.id)}
+                  />
+                </div>
+
+                {/* Load More Button */}
+                {hasMore && !loadingEmails && (
+                  <div className="border-t border-border bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 px-6 py-4">
+                    <Button
+                      onClick={loadMoreEmails}
+                      disabled={loadingMore}
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 text-base shadow-lg hover:shadow-xl transition-all"
+                      size="lg"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <Loader className="w-5 h-5 animate-spin mr-2" />
+                          Loading more emails...
+                        </>
+                      ) : (
+                        <>
+                          📨 Load More ({LOAD_MORE_BATCH} more)
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-center text-xs text-muted-foreground mt-2">
+                      {sortedEmails.length} emails loaded so far
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Pane: Email Detail (Desktop only) */}
+              <div className="hidden lg:flex flex-col flex-1 overflow-hidden bg-gray-50">
+                <EmailDetail
+                  email={sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined}
+                />
+              </div>
             </>
           )}
         </div>
