@@ -435,8 +435,29 @@ export default function UnifiedInbox() {
     providerName: email.providerName?.includes('Gmail') ? 'Gmail' : 'Outlook',
   }));
 
+  // Filter emails based on selected provider
+  const filteredEmails = selectedProviderId === "all" 
+    ? emails 
+    : emails.filter(email => {
+        // Match provider ID to email providerName
+        if (selectedProviderId === 'gmail') {
+          return email.providerName?.toLowerCase().includes('gmail');
+        }
+        if (selectedProviderId === 'microsoft') {
+          return email.providerName?.toLowerCase().includes('outlook');
+        }
+        return false;
+      });
+
+  // Log filtering for debugging
+  if (selectedProviderId !== "all") {
+    console.log(`[UnifiedInbox] Filtering for provider: ${selectedProviderId}`);
+    console.log(`[UnifiedInbox] Total emails: ${emails.length}, Filtered: ${filteredEmails.length}`);
+    console.log(`[UnifiedInbox] Provider names in emails:`, emails.map(e => e.providerName));
+  }
+
   // Sort emails by date (newest first)
-  const sortedEmails = [...emails].sort(
+  const sortedEmails = [...filteredEmails].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
 
@@ -449,9 +470,12 @@ export default function UnifiedInbox() {
 
   const unreadCount = sortedEmails.filter((email) => !email.read).length;
   
+  // Get selected provider details for display
+  const selectedProvider = providers.find(p => p.id === selectedProviderId);
   const selectedProviderName = selectedProviderId === "all" 
     ? "All Emails"
-    : providers.find(p => p.id === selectedProviderId)?.name || "Unified Inbox";
+    : selectedProvider?.name || "Unified Inbox";
+  const selectedProviderEmail = selectedProvider?.email;
 
   return (
     <div className="flex h-screen bg-background">
@@ -471,6 +495,12 @@ export default function UnifiedInbox() {
               {selectedProviderName}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
+              {selectedProviderEmail && (
+                <span className="font-medium text-primary mr-2">
+                  {selectedProviderEmail}
+                </span>
+              )}
+              {selectedProviderEmail && "• "}
               Showing {sortedEmails.length} email{sortedEmails.length !== 1 ? "s" : ""} (
               {unreadCount} unread)
               {hasMore && " • More available"}
