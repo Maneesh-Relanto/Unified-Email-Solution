@@ -10,6 +10,9 @@ export interface Email {
   date: Date;
   read: boolean;
   providerName?: string;
+  // Full email content
+  body?: string;
+  html?: string;
 }
 
 export interface Provider {
