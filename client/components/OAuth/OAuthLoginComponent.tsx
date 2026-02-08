@@ -20,53 +20,25 @@ export const OAuthLoginComponent: React.FC<OAuthLoginComponentProps> = ({
   const [loading, setLoading] = useState<'google' | 'microsoft' | null>(null);
   const [error, setError] = useState<string>('');
 
-  const initiateOAuthFlow = async (provider: 'google' | 'microsoft') => {
-    setLoading(provider);
-    setError('');
-
+  const initiateOAuthFlow = (provider: 'google' | 'microsoft') => {
     try {
       console.log(`[OAuth] Starting ${provider} authentication flow`);
+      setLoading(provider);
+      setError('');
       onAuthStart?.();
 
-      // Get authorization URL from backend
-      const endpoint = `/auth/${provider}/login`;
-      console.log(`[OAuth] Fetching from endpoint: ${endpoint}`);
+      // Directly navigate to the OAuth login endpoint
+      // The server will handle the redirect to the OAuth provider
+      const endpoint = `/auth/${provider}/login?source=integration`;
+      console.log(`[OAuth] Redirecting to endpoint: ${endpoint}`);
       
-      const response = await fetch(endpoint);
-      console.log(`[OAuth] Response status: ${response.status}`);
-      console.log(`[OAuth] Response headers:`, response.headers);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[OAuth] HTTP Error: ${response.status} - ${errorText}`);
-        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log(`[OAuth] Response data:`, data);
-
-      if (!data.success) {
-        const errorMsg = data.error || data.message || 'Authorization request failed';
-        console.error(`[OAuth] Success flag is false:`, data);
-        throw new Error(errorMsg);
-      }
-
-      if (!data.data?.authorizationUrl) {
-        console.error(`[OAuth] Missing authorizationUrl in response:`, data);
-        throw new Error('Invalid authorization response - missing URL');
-      }
-
-      console.log(`[OAuth] Redirecting to authorization URL`);
-      // Redirect to provider's authorization page
-      globalThis.location.href = data.data.authorizationUrl;
+      globalThis.location.href = endpoint;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.error(`[OAuth] Error for ${provider}:`, err);
       console.error(`[OAuth] Error message:`, errorMessage);
-      console.error(`[OAuth] Error stack:`, err instanceof Error ? err.stack : 'N/A');
       setError(errorMessage);
       onAuthError?.(errorMessage);
-    } finally {
       setLoading(null);
     }
   };

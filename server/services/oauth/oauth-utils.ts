@@ -146,7 +146,7 @@ export function buildMicrosoftAuthorizationUrl(
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: scopes.map(s => `https://graph.microsoft.com/.default`).join(' '),
+    scope: scopes.join(' '),
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
@@ -154,7 +154,14 @@ export function buildMicrosoftAuthorizationUrl(
     prompt: 'select_account', // Force account selection
   });
 
-  return `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
+  const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
+  
+  // Log the full URL for debugging
+  console.log('[OAUTH] [MICROSOFT] Authorization URL:', authUrl.substring(0, 200) + '...');
+  console.log('[OAUTH] [MICROSOFT] Scopes:', scopes);
+  console.log('[OAUTH] [MICROSOFT] Client ID:', clientId);
+  
+  return authUrl;
 }
 
 // ===== TOKEN VALIDATION =====
