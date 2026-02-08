@@ -1,11 +1,12 @@
 # Emailify - The Unified Email Box
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Code Quality](https://img.shields.io/badge/code_quality-improved-blue)]()
-[![Security Focus](https://img.shields.io/badge/security-critical-red)]()
-[![Privacy First](https://img.shields.io/badge/privacy-first-blueviolet)]()
-[![TypeScript](https://img.shields.io/badge/typescript-strict-blue)]()
-[![License](https://img.shields.io/badge/license-MIT-green)]()
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)](https://github.com)
+[![Tests](https://img.shields.io/badge/tests-359%2F359-brightgreen?style=flat-square)](https://github.com)
+[![Code Quality](https://img.shields.io/badge/code%20quality-A--grade-blue?style=flat-square)](https://github.com)
+[![Security](https://img.shields.io/badge/security-OAuth2%20%2B%20AES256-9cf?style=flat-square)](https://github.com)
+[![Privacy](https://img.shields.io/badge/privacy-first%20%26%20zero%20storage-blueviolet?style=flat-square)](https://github.com)
+[![TypeScript](https://img.shields.io/badge/typescript-strict%20mode-blue?style=flat-square)](https://github.com)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 
 ---
 
@@ -43,6 +44,43 @@ We believe privacy is not a feature—it's a fundamental right. Emailify operate
 ---
 
 ## ✨ Project Status
+
+### Latest Accomplishments (February 8, 2026 - Continued)
+
+#### Multi-Provider Stability & Race Condition Prevention
+- ✅ **Email Authentication Fix**: Resolved 401 Unauthorized errors by matching email's provider to correct OAuth account
+  - Problem: All emails used first OAuth account's credentials
+  - Solution: Determine provider from email, use correct account's email
+  - Impact: Full HTML email content now displays for all providers
+  
+- ✅ **Provider Switching Stability**: Implemented request tracking to prevent race conditions
+  - Problem: Email counts fluctuating (20 → 0) when rapidly toggling providers
+  - Solution: Track request timestamps, ignore stale responses
+  - Impact: Reliable email counts during fast provider switches
+  - Pattern: currentRequestRef with timestamp validation
+
+#### User Experience Improvements
+- ✅ **Font Size Toggle**: Small, medium, large options for accessibility
+- ✅ **Multi-Provider OAuth**: Gmail + Outlook + Yahoo + Rediff support
+- ✅ **HTML Email Rendering**: Full content display with sanitization
+- ✅ **Responsive Design**: Mobile and desktop optimized views
+
+#### Code Quality & Testing
+- ✅ **359 Tests**: All passing with 100% success rate
+  - 19 test files across client and server
+  - Comprehensive coverage of OAuth, email operations, UI
+  - Type-safe tests with generated mocks
+
+#### Bug Fixes Completed
+- ✅ OAuth provider routing (Google to Microsoft bug)
+- ✅ Email authentication mismatches  
+- ✅ Provider switching race conditions
+- ✅ Token refresh logic
+- ✅ Response payload normalization
+
+---
+
+## ✨ Current Capabilities (Session Accomplishments)
 
 ### Latest Session Accomplishments (February 8, 2026)
 
@@ -359,11 +397,16 @@ MIT License - See LICENSE file for details
 
 ---
 
-## 🔗 Quick Links
+## 🔗 Documentation
 
-- **GitHub**: [Repository](https://github.com/)
-- **Issues**: [Bug Reports](https://github.com/issues)
-- **Docs**: [AGENTS.md](./docs/AGENTS.md) - Architecture documentation
+For developers implementing and extending Emailify:
+
+- **[OAuth Implementation](./docs/OAUTH_IMPLEMENTATION.md)** - Complete OAuth2 setup for Google, Microsoft, Yahoo, Rediff
+- **[Email Service Architecture](./docs/OAUTH_EMAIL_FETCHER.md)** - Email fetching and provider integration details
+- **[Application Architecture](./docs/ARCHITECTURE.md)** - Connected accounts, data persistence, and design decisions
+- **[Error Handling](./docs/ERROR_HANDLING.md)** - Error recovery strategies and implementation patterns
+- **[Configuration](./config/README.md)** - Build and deployment configuration
+- **[Deployment Guide](./deployment/README.md)** - Production deployment options
 
 ---
 

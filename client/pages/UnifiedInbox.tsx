@@ -7,7 +7,13 @@ import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
 import { StatusBar, useStatusBar } from "@/components/StatusBar";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, Settings, Loader } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { LayoutGrid, Settings, Loader, Type } from "lucide-react";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import type { Email } from "@/lib/mock-emails";
 
@@ -112,14 +118,15 @@ export default function UnifiedInbox() {
   const [error, setError] = useState<string | null>(null);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [emailOffsets, setEmailOffsets] = useState<Record<string, number>>({}); // Track offset per provider
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium'); // Font size preference
   const INITIAL_LOAD = 20;
   const LOAD_MORE_BATCH = 20;
   
   // Status bar hook
   const statusBar = useStatusBar();
   
-  // Track current loading message ID to clear it when switching providers
-  const currentLoadingIdRef = useRef<string | null>(null);
+  // Track current fetch request to avoid race conditions when switching providers
+  const currentRequestRef = useRef<{ providerId: string; timestamp: number } | null>(null);
 
   // Initialize providers from OAuth accounts on mount
   useEffect(() => {
@@ -130,6 +137,14 @@ export default function UnifiedInbox() {
   useEffect(() => {
     if (!accountsLoaded) return; // Don't fetch until accounts are loaded
     
+    console.log('[UnifiedInbox] Provider changed to:', selectedProviderId);
+    console.log('[UnifiedInbox] Current oauthEmails count:', oauthEmails.length);
+    
+    // Mark the current request so we can detect out-of-order responses
+    const requestTimestamp = Date.now();
+    currentRequestRef.current = { providerId: selectedProviderId, timestamp: requestTimestamp };
+    console.log('[UnifiedInbox] New request marked:', { providerId: selectedProviderId, timestamp: requestTimestamp });
+    
     // Clear any existing loading message when switching providers
     if (currentLoadingIdRef.current) {
       statusBar.removeMessage(currentLoadingIdRef.current);
@@ -137,11 +152,14 @@ export default function UnifiedInbox() {
     }
     
     // Reset offsets when switching providers
+    console.log('[UnifiedInbox] Resetting email offsets');
     setEmailOffsets({});
     
     if (selectedProviderId === "all") {
+      console.log('[UnifiedInbox] Fetching ALL emails');
       fetchAllOAuthEmails();
     } else {
+      console.log(`[UnifiedInbox] Fetching ${selectedProviderId} emails only`);
       fetchOAuthEmails(selectedProviderId);
     }
     
@@ -260,11 +278,26 @@ export default function UnifiedInbox() {
     }, 1500);
     
     try {
+      // Store request timestamp before fetching
+      const requestTimestamp = currentRequestRef.current?.timestamp;
+      
       console.log(`[UnifiedInbox] Fetching OAuth emails (skip: ${skip}, limit: ${limit})...`);
       const response = await fetch(`/api/email/oauth/all?limit=${limit}&skip=${skip}`);
       
       // Clear interval
       clearInterval(updateInterval);
+      
+      // Check if this is still the current request before processing response
+      if (currentRequestRef.current?.timestamp !== requestTimestamp) {
+        console.log('[UnifiedInbox] Ignoring stale response for ALL emails fetch (newer request initiated)');
+        setLoadingEmails(false);
+        setLoadingMore(false);
+        if (loadingId) {
+          statusBar.removeMessage(loadingId);
+          currentLoadingIdRef.current = null;
+        }
+        return;
+      }
       
       if (!response.ok) {
         throw new Error(`Failed to fetch emails: ${response.status} ${response.statusText}`);
@@ -403,6 +436,9 @@ export default function UnifiedInbox() {
     }, 1200) : undefined;
     
     try {
+      // Store request timestamp before fetching
+      const requestTimestamp = currentRequestRef.current?.timestamp;
+      
       if (updateInterval) clearInterval(updateInterval); // Clear if completes quickly
       
       // Find the email address for this provider
@@ -428,6 +464,18 @@ export default function UnifiedInbox() {
       console.log(`[UnifiedInbox] Fetching ${provider} emails for:`, account.email, `(skip: ${skip}, limit: ${limit})`);
       const encodedEmail = encodeURIComponent(account.email);
       const response = await fetch(`/api/email/oauth/provider/${encodedEmail}?limit=${limit}&skip=${skip}`);
+      
+      // Check if this is still the current request before processing response
+      if (currentRequestRef.current?.timestamp !== requestTimestamp) {
+        console.log(`[UnifiedInbox] Ignoring stale response for ${provider} emails fetch (newer request initiated)`);
+        setLoadingEmails(false);
+        setLoadingMore(false);
+        if (loadingId) {
+          statusBar.removeMessage(loadingId);
+          currentLoadingIdRef.current = null;
+        }
+        return;
+      }
       
       if (!response.ok) {
         throw new Error(`Failed to fetch emails: ${response.status} ${response.statusText}`);
@@ -576,26 +624,45 @@ export default function UnifiedInbox() {
     providerName: email.providerName?.includes('Gmail') ? 'Gmail' : 'Outlook',
   }));
 
+  console.log('[UnifiedInbox] Conversion to UI emails:', {
+    oauthEmailsCount: oauthEmails.length,
+    convertedEmailsCount: emails.length,
+    providerNames: emails.map(e => e.providerName),
+  });
+
   // Filter emails based on selected provider
   const filteredEmails = selectedProviderId === "all" 
     ? emails 
     : emails.filter(email => {
         // Match provider ID to email providerName
         if (selectedProviderId === 'gmail') {
-          return email.providerName?.toLowerCase().includes('gmail');
+          const match = email.providerName?.toLowerCase().includes('gmail');
+          console.log(`[UnifiedInbox] Gmail filter check - email: ${email.subject}, provider: ${email.providerName}, match: ${match}`);
+          return match;
         }
         if (selectedProviderId === 'microsoft') {
-          return email.providerName?.toLowerCase().includes('outlook');
+          const match = email.providerName?.toLowerCase().includes('outlook');
+          console.log(`[UnifiedInbox] Outlook filter check - email: ${email.subject}, provider: ${email.providerName}, match: ${match}`);
+          return match;
         }
         return false;
       });
 
   // Log filtering for debugging
-  if (selectedProviderId !== "all") {
-    console.log(`[UnifiedInbox] Filtering for provider: ${selectedProviderId}`);
-    console.log(`[UnifiedInbox] Total emails: ${emails.length}, Filtered: ${filteredEmails.length}`);
-    console.log(`[UnifiedInbox] Provider names in emails:`, emails.map(e => e.providerName));
-  }
+  console.log(`[UnifiedInbox] After filter - selectedProvider: ${selectedProviderId}, rawCount: ${emails.length}, filteredCount: ${filteredEmails.length}`);
+
+  // Get font size classes
+  const getFontSizeClasses = () => {
+    switch (fontSize) {
+      case 'small':
+        return 'text-sm [&_*]:text-sm [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-base [&_p]:text-sm [&_span]:text-sm';
+      case 'large':
+        return 'text-lg [&_*]:text-lg [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_p]:text-lg [&_span]:text-lg';
+      case 'medium':
+      default:
+        return 'text-base [&_*]:text-base [&_h1]:text-xl [&_h2]:text-lg [&_h3]:text-base [&_p]:text-base [&_span]:text-base';
+    }
+  };
 
   // Sort emails by date (newest first)
   const sortedEmails = [...filteredEmails].sort(
@@ -624,7 +691,7 @@ export default function UnifiedInbox() {
       />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className={`flex-1 flex flex-col overflow-hidden ${getFontSizeClasses()}`}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-border bg-card flex items-center justify-between">
           <div>
@@ -648,6 +715,34 @@ export default function UnifiedInbox() {
             {(loadingEmails || loadingMore) && (
               <Loader className="w-4 h-4 animate-spin text-primary" />
             )}
+            {/* Font Size Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" title="Font size">
+                  <Type className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => setFontSize('small')}
+                  className={fontSize === 'small' ? 'bg-accent' : ''}
+                >
+                  <span className="text-sm">Small</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setFontSize('medium')}
+                  className={fontSize === 'medium' ? 'bg-accent' : ''}
+                >
+                  <span className="text-base">Medium</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setFontSize('large')}
+                  className={fontSize === 'large' ? 'bg-accent' : ''}
+                >
+                  <span className="text-lg">Large</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               asChild
               variant="outline"
@@ -716,13 +811,25 @@ export default function UnifiedInbox() {
               {/* Mobile: Show email detail when selected */}
               {selectedEmailId && (
                 <div className="lg:hidden absolute inset-0 bg-white z-10">
-                  <EmailDetail
-                    email={sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined}
-                    onClose={() => setSelectedEmailId(undefined)}
-                    userEmail={oauthAccounts[0]?.email}
-                    provider={selectedProviderId === "all" ? getProviderFromEmail(sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined) : selectedProviderId === "gmail" ? "gmail" : "outlook"}
-                    onEmailAction={handleEmailAction}
-                  />
+                  {(() => {
+                    const selectedEmail = sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined;
+                    const provider = selectedProviderId === "all" ? getProviderFromEmail(selectedEmail) : (selectedProviderId === "gmail" ? "gmail" : "outlook");
+                    
+                    // Find the OAuth account for this provider
+                    const accountProvider = provider === 'gmail' ? 'google' : 'microsoft';
+                    const correctAccount = oauthAccounts.find(acc => acc.provider === accountProvider);
+                    const correctUserEmail = correctAccount?.email;
+                    
+                    return (
+                      <EmailDetail
+                        email={selectedEmail}
+                        onClose={() => setSelectedEmailId(undefined)}
+                        userEmail={correctUserEmail}
+                        provider={provider}
+                        onEmailAction={handleEmailAction}
+                      />
+                    );
+                  })()}
                 </div>
               )}
 
@@ -765,12 +872,24 @@ export default function UnifiedInbox() {
 
               {/* Right Pane: Email Detail (Desktop only) */}
               <div className="hidden lg:flex flex-col flex-1 overflow-hidden bg-gray-50">
-                <EmailDetail
-                  email={sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined}
-                  userEmail={oauthAccounts[0]?.email}
-                  provider={selectedProviderId === "all" ? getProviderFromEmail(sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined) : selectedProviderId === "gmail" ? "gmail" : "outlook"}
-                  onEmailAction={handleEmailAction}
-                />
+                {(() => {
+                  const selectedEmail = sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined;
+                  const provider = selectedProviderId === "all" ? getProviderFromEmail(selectedEmail) : (selectedProviderId === "gmail" ? "gmail" : "outlook");
+                  
+                  // Find the OAuth account for this provider
+                  const accountProvider = provider === 'gmail' ? 'google' : 'microsoft';
+                  const correctAccount = oauthAccounts.find(acc => acc.provider === accountProvider);
+                  const correctUserEmail = correctAccount?.email;
+                  
+                  return (
+                    <EmailDetail
+                      email={selectedEmail}
+                      userEmail={correctUserEmail}
+                      provider={provider}
+                      onEmailAction={handleEmailAction}
+                    />
+                  );
+                })()}
               </div>
             </>
           )}

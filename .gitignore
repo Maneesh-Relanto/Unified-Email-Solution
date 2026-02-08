@@ -27,7 +27,10 @@ dist-ssr
 .env
 .env.local
 .env.*.local
-# Confidential folder (internal tracking, not for version control)
-# Server data (OAuth credentials, etc)
-server/data/
+
+# Confidential folders (internal tracking, process docs, not for public)
+.confidential/
 confidential/
+
+# Server data (OAuth credentials, email credentials)
+server/data/

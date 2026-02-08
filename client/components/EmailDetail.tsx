@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import type { Email } from "@/lib/mock-emails";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface EmailDetailProps {
   email: Email | undefined;
@@ -17,8 +17,70 @@ export function EmailDetail({ email, onClose, onEmailAction, userEmail, provider
   const [isLoading, setIsLoading] = useState(false);
   const [actionComplete, setActionComplete] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fullEmail, setFullEmail] = useState<Email | undefined>(email);
+  const [isFetchingFull, setIsFetchingFull] = useState(false);
 
-  if (!email) {
+  // Fetch full email detail when email changes
+  useEffect(() => {
+    if (!email?.id || !provider || !userEmail) {
+      setFullEmail(email);
+      return;
+    }
+
+    const fetchFullEmail = async () => {
+      setIsFetchingFull(true);
+      try {
+        const url = `/api/email/${provider}/${email.id}?email=${encodeURIComponent(userEmail)}`;
+        console.log('[EmailDetail] Fetching full email from:', url);
+        
+        const response = await fetch(url);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[EmailDetail] API Response:', {
+            success: data.success,
+            hasEmail: !!data.email,
+            emailFields: data.email ? Object.keys(data.email) : [],
+            htmlLength: data.email?.html ? data.email.html.length : 0,
+            bodyLength: data.email?.body ? data.email.body.length : 0,
+            previewLength: data.email?.preview ? data.email.preview.length : 0,
+          });
+          
+          if (data.success && data.email) {
+            // Merge fetched email with original to preserve any client-side data
+            const mergedEmail = {
+              ...email,
+              ...data.email,
+              body: data.email.body,
+              html: data.email.html,
+            };
+            console.log('[EmailDetail] Merged email - html exists:', !!mergedEmail.html, 'body exists:', !!mergedEmail.body);
+            setFullEmail(mergedEmail);
+          } else {
+            console.warn('[EmailDetail] API response missing success or email field');
+            setFullEmail(email);
+          }
+        } else {
+          console.warn('[EmailDetail] API response not ok:', response.status, response.statusText);
+          const errorData = await response.json().catch(() => ({}));
+          console.warn('[EmailDetail] Error response:', errorData);
+          setFullEmail(email);
+        }
+      } catch (err) {
+        console.error('[EmailDetail] Error fetching full email:', err);
+        setFullEmail(email);
+      } finally {
+        setIsFetchingFull(false);
+      }
+    };
+
+    fetchFullEmail();
+  }, [email?.id, provider, userEmail]);
+
+  // Use fullEmail if available, otherwise fall back to email prop
+  const displayEmail = fullEmail || email;
+
+  if (!displayEmail) {
     return (
       <div className="hidden lg:flex flex-col h-full bg-gray-50 border-l items-center justify-center">
         <p className="text-muted-foreground text-center">
@@ -28,14 +90,14 @@ export function EmailDetail({ email, onClose, onEmailAction, userEmail, provider
     );
   }
 
-  const initials = email.from.name
+  const initials = displayEmail.from.name
     .split(" ")
     .map((n) => n[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
 
-  const avatarColor = email.from.avatar || "bg-gray-400";
+  const avatarColor = displayEmail.from.avatar || "bg-gray-400";
 
   const handleAction = async (action: "archive" | "delete" | "markRead" | "markUnread") => {
     if (!userEmail || !provider) {
@@ -48,10 +110,10 @@ export function EmailDetail({ email, onClose, onEmailAction, userEmail, provider
 
     try {
       const endpoint = action === "archive"
-        ? `/api/email/${provider}/${email.id}/archive?email=${encodeURIComponent(userEmail)}`
+        ? `/api/email/${provider}/${displayEmail.id}/archive?email=${encodeURIComponent(userEmail)}`
         : action === "delete"
-        ? `/api/email/${provider}/${email.id}?email=${encodeURIComponent(userEmail)}`
-        : `/api/email/${provider}/${email.id}/read?email=${encodeURIComponent(userEmail)}&read=${action === "markRead" ? "true" : "false"}`;
+        ? `/api/email/${provider}/${displayEmail.id}?email=${encodeURIComponent(userEmail)}`
+        : `/api/email/${provider}/${displayEmail.id}/read?email=${encodeURIComponent(userEmail)}&read=${action === "markRead" ? "true" : "false"}`;
 
       const method = action === "delete" ? "DELETE" : action === "archive" ? "POST" : "PUT";
 
@@ -71,10 +133,10 @@ export function EmailDetail({ email, onClose, onEmailAction, userEmail, provider
       setTimeout(() => setActionComplete(null), 2000);
 
       if (action === "archive" || action === "delete") {
-        onEmailAction?.(action, email.id);
+        onEmailAction?.(action, displayEmail.id);
         setTimeout(() => onClose?.(), 500);
       } else {
-        onEmailAction?.(action === "markRead" ? "read" : "read", email.id);
+        onEmailAction?.(action === "markRead" ? "read" : "read", displayEmail.id);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -103,7 +165,7 @@ export function EmailDetail({ email, onClose, onEmailAction, userEmail, provider
         {/* Email Header Section */}
         <div className="px-6 py-6 border-b bg-gray-50">
           <h1 className="text-2xl font-bold mb-6 text-gray-900 break-words">
-            {email.subject}
+            {displayEmail.subject}
           </h1>
 
           {/* Sender Info */}
@@ -119,16 +181,16 @@ export function EmailDetail({ email, onClose, onEmailAction, userEmail, provider
             <div className="flex-1 min-w-0">
               <div className="text-sm">
                 <span className="font-semibold text-gray-900">
-                  {email.from.name}
+                  {displayEmail.from.name}
                 </span>
-                <span className="text-gray-500 ml-1">&lt;{email.from.email}&gt;</span>
+                <span className="text-gray-500 ml-1">&lt;{displayEmail.from.email}&gt;</span>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                {formatDistanceToNow(new Date(email.date), { addSuffix: true })}
+                {formatDistanceToNow(new Date(displayEmail.date), { addSuffix: true })}
               </p>
-              {email.providerName && (
+              {displayEmail.providerName && (
                 <p className="text-xs text-gray-500 mt-1">
-                  Via {email.providerName}
+                  Via {displayEmail.providerName}
                 </p>
               )}
             </div>
@@ -143,7 +205,7 @@ export function EmailDetail({ email, onClose, onEmailAction, userEmail, provider
           </div>
 
           {/* Unread Badge */}
-          {!email.read && (
+          {!displayEmail.read && (
             <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 text-xs font-medium px-3 py-1 rounded-full">
               <AlertCircle className="w-3 h-3" />
               Unread
@@ -161,20 +223,29 @@ export function EmailDetail({ email, onClose, onEmailAction, userEmail, provider
 
         {/* Email Body - Full Content with HTML Support */}
         <div className="px-6 py-6 prose prose-sm max-w-none">
-          {/* Prioritize HTML content, fallback to body, then preview */}
-          {email.html ? (
-            <div
-              className="text-gray-700 break-words leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: email.html }}
-            />
-          ) : email.body ? (
-            <p className="text-gray-700 whitespace-pre-wrap break-words leading-relaxed">
-              {email.body}
-            </p>
+          {isFetchingFull ? (
+            <div className="flex items-center gap-2 text-gray-600">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <p>Loading full email content...</p>
+            </div>
           ) : (
-            <p className="text-gray-700 whitespace-pre-wrap break-words leading-relaxed">
-              {email.preview}
-            </p>
+            <>
+              {/* Prioritize HTML content, fallback to body, then preview */}
+              {displayEmail.html ? (
+                <div
+                  className="text-gray-700 break-words leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: displayEmail.html }}
+                />
+              ) : displayEmail.body ? (
+                <div className="text-gray-700 break-words leading-relaxed">
+                  <p className="whitespace-pre-wrap">{displayEmail.body}</p>
+                </div>
+              ) : (
+                <div className="text-gray-700 break-words leading-relaxed">
+                  <p className="whitespace-pre-wrap">{displayEmail.preview}</p>
+                </div>
+              )}
+            </>
           )}
         </div>
 

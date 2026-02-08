@@ -382,23 +382,29 @@ export class OAuthEmailProvider implements EmailProvider {
       // Decode body
       let body = '';
       let html = '';
+      console.log('[Gmail Message Parse] Parts found:', message.payload.parts?.length || 0);
+      
       if (message.payload.parts) {
         // Multipart message
         for (const part of message.payload.parts) {
+          console.log('[Gmail Message Parse] Part:', { mimeType: part.mimeType, hasData: !!part.body?.data });
           if (part.mimeType === 'text/plain' && !body) {
             body = this.decodeBase64(part.body.data || '');
+            console.log('[Gmail Message Parse] Extracted plain text body, length:', body.length);
           } else if (part.mimeType === 'text/html' && !html) {
             html = this.decodeBase64(part.body.data || '');
+            console.log('[Gmail Message Parse] Extracted HTML body, length:', html.length);
           }
         }
       } else if (message.payload.body?.data) {
         body = this.decodeBase64(message.payload.body.data);
+        console.log('[Gmail Message Parse] Single part message, body length:', body.length);
       }
 
       const preview = body.substring(0, 200).replace(/\n/g, ' ');
       const isUnread = message.labelIds?.includes('UNREAD') || false;
 
-      return {
+      const result = {
         id: `gmail_${messageId}`,
         from: {
           name: getHeader('From').replace(/<.*>/, '').trim() || 'Unknown',
@@ -414,6 +420,17 @@ export class OAuthEmailProvider implements EmailProvider {
         read: !isUnread,
         providerName: 'Gmail (OAuth)',
       };
+      
+      console.log('[Gmail Message Parse] Final result:', { 
+        id: result.id, 
+        subject: result.subject,
+        hasBody: !!result.body,
+        bodyLength: result.body?.length,
+        hasHtml: !!result.html,
+        htmlLength: result.html?.length 
+      });
+      
+      return result;
     } catch (error) {
       console.error('[OAuth Email Provider] Error parsing Gmail message:', error);
       return null;
@@ -470,11 +487,39 @@ export class OAuthEmailProvider implements EmailProvider {
       );
 
       const msg = response.data;
-      const body = msg.body?.content || '';
-      const html = msg.body?.contentType === 'html' ? msg.body.content : undefined;
-      const preview = msg.bodyPreview || body.substring(0, 200);
+      
+      // Get the full message body content
+      const content = msg.body?.content || '';
+      const contentType = msg.body?.contentType || 'text';
+      
+      // For HTML emails, the content IS the HTML
+      // For text emails, we only have body text
+      let body = '';
+      let html = '';
+      
+      if (contentType?.toLowerCase() === 'html') {
+        // The email content is HTML
+        html = content;
+        // Also keep plain text version if available
+        body = msg.bodyPreview || '';
+      } else {
+        // The email content is plain text
+        body = content;
+      }
+      
+      const preview = msg.bodyPreview || content.substring(0, 200);
 
-      return {
+      console.log('[Outlook Message Parse]', {
+        messageId,
+        contentType,
+        hasBody: !!body,
+        bodyLength: body.length,
+        hasHtml: !!html,
+        htmlLength: html?.length,
+        previewLength: preview.length,
+      });
+
+      const result = {
         id: `outlook_${msg.id}`,
         from: {
           name: msg.from?.emailAddress?.name || 'Unknown',
@@ -489,6 +534,8 @@ export class OAuthEmailProvider implements EmailProvider {
         providerName: 'Outlook (OAuth)',
         attachments: msg.hasAttachments ? await this.fetchOutlookAttachments(messageId) : undefined,
       };
+
+      return result;
     } catch (error) {
       console.error('[OAuth Email Provider] Error parsing Outlook message:', error);
       return null;
