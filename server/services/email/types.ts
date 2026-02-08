@@ -78,6 +78,11 @@ export interface EmailProvider {
   fetchEmails(options?: FetchEmailsOptions): Promise<ParsedEmail[]>;
 
   /**
+   * Get full email detail with body and attachments
+   */
+  getEmailDetail(emailId: string): Promise<ParsedEmail | null>;
+
+  /**
    * Mark email as read
    */
   markAsRead(emailId: string, read: boolean): Promise<void>;

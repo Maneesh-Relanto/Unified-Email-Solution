@@ -86,6 +86,25 @@ export class OAuthEmailProvider implements EmailProvider {
     }
   }
 
+  async getEmailDetail(emailId: string): Promise<ParsedEmail | null> {
+    try {
+      await this.ensureValidToken();
+
+      if (this.provider === 'gmail' || this.provider === 'google') {
+        // Remove 'gmail_' prefix if present
+        const actualId = emailId.replace('gmail_', '');
+        return await this.fetchGmailMessage(actualId);
+      } else {
+        // Remove 'outlook_' prefix if present
+        const actualId = emailId.replace('outlook_', '');
+        return await this.fetchOutlookMessage(actualId);
+      }
+    } catch (error) {
+      console.error(`[OAuth Email Provider] Error fetching email detail:`, error);
+      return null;
+    }
+  }
+
   async markAsRead(emailId: string, read: boolean): Promise<void> {
     try {
       await this.ensureValidToken();
@@ -383,6 +402,56 @@ export class OAuthEmailProvider implements EmailProvider {
     } catch (error) {
       console.error('[OAuth Email Provider] Error fetching Outlook emails:', error);
       throw error;
+    }
+  }
+
+  private async fetchOutlookMessage(messageId: string): Promise<ParsedEmail | null> {
+    try {
+      const response = await this.apiClient.get(
+        `https://graph.microsoft.com/v1.0/me/messages/${messageId}`
+      );
+
+      const msg = response.data;
+      const body = msg.body?.content || '';
+      const html = msg.body?.contentType === 'html' ? msg.body.content : undefined;
+      const preview = msg.bodyPreview || body.substring(0, 200);
+
+      return {
+        id: `outlook_${msg.id}`,
+        from: {
+          name: msg.from?.emailAddress?.name || 'Unknown',
+          email: msg.from?.emailAddress?.address || '',
+        },
+        subject: msg.subject,
+        preview,
+        body,
+        html,
+        date: new Date(msg.receivedDateTime),
+        read: msg.isRead,
+        providerName: 'Outlook (OAuth)',
+        attachments: msg.hasAttachments ? await this.fetchOutlookAttachments(messageId) : undefined,
+      };
+    } catch (error) {
+      console.error('[OAuth Email Provider] Error parsing Outlook message:', error);
+      return null;
+    }
+  }
+
+  private async fetchOutlookAttachments(messageId: string): Promise<Array<{ filename: string; size: number; contentType: string }> | undefined> {
+    try {
+      const response = await this.apiClient.get(
+        `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments`
+      );
+
+      const attachments = response.data.value || [];
+      return attachments.map((att: any) => ({
+        filename: att.name,
+        size: att.size,
+        contentType: att.contentType,
+      }));
+    } catch (error) {
+      console.error('[OAuth Email Provider] Error fetching Outlook attachments:', error);
+      return undefined;
     }
   }
 

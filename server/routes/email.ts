@@ -966,6 +966,112 @@ export function clearCache(req: Request, res: Response) {
 }
 
 /**
+ * Get full email detail with body and attachments
+ * GET /api/email/:provider/:emailId
+ * 
+ * Query params: ?email=user@gmail.com
+ * Returns: Full email with body, HTML, attachments, headers
+ */
+export async function getEmailDetail(req: Request, res: Response) {
+  try {
+    const { provider: providerParam, emailId } = req.params;
+    const userEmail = req.query.email as string;
+
+    if (!userEmail) {
+      return res.status(400).json({
+        error: 'Missing email parameter',
+        message: 'Please provide ?email=user@example.com',
+      });
+    }
+
+    if (!emailId) {
+      return res.status(400).json({
+        error: 'Missing emailId',
+        message: 'Email ID is required in URL',
+      });
+    }
+
+    // Normalize provider (could be 'gmail', 'google', 'outlook', 'microsoft')
+    const provider = providerParam?.toLowerCase() === 'google' ? 'gmail' : providerParam?.toLowerCase();
+
+    if (!['gmail', 'outlook'].includes(provider)) {
+      return res.status(400).json({
+        error: 'Invalid provider',
+        message: 'Only gmail and outlook are supported',
+      });
+    }
+
+    console.log(`[Email Detail] Fetching ${provider}/${emailId} for ${userEmail}`);
+
+    // Get OAuth credential
+    const credentialKey = `${provider === 'gmail' ? 'google' : 'microsoft'}_${userEmail}`;
+    let credential = emailCredentialStore.getOAuthCredential(credentialKey);
+
+    if (!credential) {
+      console.error(`[Email Detail] No credential found for: ${credentialKey}`);
+      return res.status(401).json({
+        error: 'No OAuth credential',
+        message: `Account ${userEmail} not authenticated with ${provider}`,
+      });
+    }
+
+    // Decrypt tokens
+    const decrypted = decryptTokens(credential);
+    if (!decrypted) {
+      return res.status(401).json({
+        error: 'Failed to decrypt credentials',
+        message: 'Please re-authenticate',
+      });
+    }
+
+    // Create OAuth provider
+    const oauthProvider = EmailProviderFactory.createProvider({
+      providerType: 'oauth',
+      email: credential.email,
+      provider: credential.provider as 'gmail' | 'outlook',
+      oauthConfig: {
+        clientId: '',
+        clientSecret: '',
+        accessToken: decrypted.accessToken,
+        refreshToken: decrypted.refreshToken,
+        expiresAt: credential.oauthToken.expiresAt,
+      },
+    });
+
+    const authenticated = await oauthProvider.authenticate();
+    if (!authenticated) {
+      return res.status(401).json({
+        error: 'Authentication failed',
+        message: 'Could not authenticate OAuth provider',
+      });
+    }
+
+    // Fetch full email detail
+    console.log(`[Email Detail] Fetching full email from ${provider} API...`);
+    const emailDetail = await oauthProvider.getEmailDetail(emailId);
+
+    if (!emailDetail) {
+      return res.status(404).json({
+        error: 'Email not found',
+        message: `Email ${emailId} not found on ${provider}`,
+      });
+    }
+
+    // Return normalized email detail
+    res.json({
+      success: true,
+      email: emailDetail,
+    });
+  } catch (error) {
+    console.error('[Email Detail Error]:', error);
+    res.status(500).json({
+      error: 'Failed to fetch email detail',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
  * Disconnect all providers (cleanup)
  * POST /api/email/disconnect-all
  */

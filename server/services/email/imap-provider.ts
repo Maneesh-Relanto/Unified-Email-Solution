@@ -418,6 +418,13 @@ export class ImapEmailProvider implements EmailProvider {
     // Implementation depends on how we store email UIDs
   }
 
+  async getEmailDetail(emailId: string): Promise<ParsedEmail | null> {
+    // This would require fetching a specific email by UID from IMAP
+    // For now, return null as this is primarily an OAuth-based feature
+    console.warn('[IMAP Provider] getEmailDetail is not implemented for IMAP provider');
+    return null;
+  }
+
   async disconnect(): Promise<void> {
     return new Promise((resolve) => {
       try {
