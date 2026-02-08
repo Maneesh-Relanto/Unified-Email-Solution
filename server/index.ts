@@ -19,6 +19,9 @@ import {
   getOAuthEmails,
   getAllOAuthEmails,
   getEmailDetail,
+  markEmailAsRead,
+  archiveEmail,
+  deleteEmail,
 } from "./routes/email";
 
 export function createServer() {
@@ -66,6 +69,9 @@ export function createServer() {
   // Parameterized routes come LAST
   app.get("/api/email/provider/:provider", getAccountsByProvider);
   app.get("/api/email/:provider/:emailId", getEmailDetail);  // Email detail - must be before generic :emailAddress
+  app.put("/api/email/:provider/:emailId/read", markEmailAsRead);
+  app.post("/api/email/:provider/:emailId/archive", archiveEmail);
+  app.delete("/api/email/:provider/:emailId", deleteEmail);
   app.get("/api/email/:emailAddress", getEmailsByProvider);
 
   return app;

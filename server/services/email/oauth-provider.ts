@@ -110,27 +110,85 @@ export class OAuthEmailProvider implements EmailProvider {
       await this.ensureValidToken();
 
       if (this.provider === 'gmail' || this.provider === 'google') {
+        // Gmail API: use modify method with labels
         const action = read ? 'removeLabels' : 'addLabels';
         await this.apiClient.post(
-          `https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}/${action}`,
+          `https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`,
           {
-            ids: [emailId],
-            [action === 'removeLabels' ? 'removeLabels' : 'addLabels']: ['UNREAD'],
+            [action]: ['UNREAD'],
           }
         );
+        console.log(
+          `[OAuth Gmail] Email ${emailId} marked as ${read ? 'read' : 'unread'}`
+        );
       } else {
-        // Microsoft Graph doesn't support marking via API directly in the same way
-        // This would require updating the message itself
-        console.warn(
-          '[OAuth Email Provider] markAsRead not fully implemented for Outlook'
+        // Microsoft Graph: use PATCH to update isRead property
+        await this.apiClient.patch(
+          `https://graph.microsoft.com/v1.0/me/messages/${emailId}`,
+          {
+            isRead: read,
+          }
+        );
+        console.log(
+          `[OAuth Outlook] Email ${emailId} marked as ${read ? 'read' : 'unread'}`
         );
       }
-
-      console.log(
-        `[OAuth Email Provider] Email ${emailId} marked as ${read ? 'read' : 'unread'}`
-      );
     } catch (error) {
       console.error('[OAuth Email Provider] Error marking email as read:', error);
+      throw error;
+    }
+  }
+
+  async archiveEmail(emailId: string): Promise<void> {
+    try {
+      await this.ensureValidToken();
+
+      if (this.provider === 'gmail' || this.provider === 'google') {
+        // Gmail API: archive by removing from Inbox label
+        await this.apiClient.post(
+          `https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`,
+          {
+            removeLabels: ['INBOX'],
+          }
+        );
+        console.log(`[OAuth Gmail] Email ${emailId} archived`);
+      } else {
+        // Microsoft Graph: move to Archive folder
+        // Use the wellKnownFolderName 'archive'
+        await this.apiClient.post(
+          `https://graph.microsoft.com/v1.0/me/messages/${emailId}/move`,
+          {
+            destinationId: 'archive',
+          }
+        );
+        console.log(`[OAuth Outlook] Email ${emailId} archived`);
+      }
+    } catch (error) {
+      console.error('[OAuth Email Provider] Error archiving email:', error);
+      throw error;
+    }
+  }
+
+  async deleteEmail(emailId: string): Promise<void> {
+    try {
+      await this.ensureValidToken();
+
+      if (this.provider === 'gmail' || this.provider === 'google') {
+        // Gmail API: permanent delete (not just trash)
+        await this.apiClient.delete(
+          `https://www.googleapis.com/gmail/v1/users/me/messages/${emailId}`
+        );
+        console.log(`[OAuth Gmail] Email ${emailId} deleted permanently`);
+      } else {
+        // Microsoft Graph: Delete (soft delete to Deleted Items folder)
+        // Use DELETE method which moves to Deleted Items
+        await this.apiClient.delete(
+          `https://graph.microsoft.com/v1.0/me/messages/${emailId}`
+        );
+        console.log(`[OAuth Outlook] Email ${emailId} deleted`);
+      }
+    } catch (error) {
+      console.error('[OAuth Email Provider] Error deleting email:', error);
       throw error;
     }
   }

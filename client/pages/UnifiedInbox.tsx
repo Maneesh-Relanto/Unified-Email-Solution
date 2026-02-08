@@ -88,6 +88,18 @@ interface Provider {
   email?: string; // Email address for the provider account
 }
 
+/**
+ * Extract provider from email's providerName field
+ * Converts 'Gmail (OAuth)' to 'gmail', 'Outlook (OAuth)' to 'outlook'
+ */
+function getProviderFromEmail(email: Email | undefined): string {
+  if (!email) return "gmail";
+  const providerName = email.providerName?.toLowerCase() || "";
+  if (providerName.includes("gmail")) return "gmail";
+  if (providerName.includes("outlook")) return "outlook";
+  return "gmail"; // Default fallback
+}
+
 export default function UnifiedInbox() {
   const [selectedProviderId, setSelectedProviderId] = useState<string>("all");
   const [selectedEmailId, setSelectedEmailId] = useState<string | undefined>();
@@ -533,6 +545,26 @@ export default function UnifiedInbox() {
     }
   };
 
+  /**
+   * Handle email actions (archive, delete, mark as read)
+   * Updates local state to reflect the action
+   */
+  const handleEmailAction = (action: "archive" | "delete" | "read", emailId: string) => {
+    if (action === "archive" || action === "delete") {
+      // Remove the email from the list after archive/delete
+      setOauthEmails(prev => prev.filter(email => email.id !== emailId));
+      // Clear selection
+      setSelectedEmailId(undefined);
+    } else if (action === "read") {
+      // Update read status
+      setOauthEmails(prev =>
+        prev.map(email =>
+          email.id === emailId ? { ...email, read: true } : email
+        )
+      );
+    }
+  };
+
   // Convert OAuth emails to UI format
   const emails: Email[] = oauthEmails.map(email => ({
     id: email.id,
@@ -687,6 +719,9 @@ export default function UnifiedInbox() {
                   <EmailDetail
                     email={sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined}
                     onClose={() => setSelectedEmailId(undefined)}
+                    userEmail={oauthAccounts[0]?.email}
+                    provider={selectedProviderId === "all" ? getProviderFromEmail(sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined) : selectedProviderId === "gmail" ? "gmail" : "outlook"}
+                    onEmailAction={handleEmailAction}
                   />
                 </div>
               )}
@@ -732,6 +767,9 @@ export default function UnifiedInbox() {
               <div className="hidden lg:flex flex-col flex-1 overflow-hidden bg-gray-50">
                 <EmailDetail
                   email={sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined}
+                  userEmail={oauthAccounts[0]?.email}
+                  provider={selectedProviderId === "all" ? getProviderFromEmail(sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined) : selectedProviderId === "gmail" ? "gmail" : "outlook"}
+                  onEmailAction={handleEmailAction}
                 />
               </div>
             </>

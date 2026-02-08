@@ -1,15 +1,23 @@
-import { X, Reply, Forward, Trash2, Archive, AlertCircle } from "lucide-react";
+import { X, Reply, Forward, Trash2, Archive, AlertCircle, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import type { Email } from "@/lib/mock-emails";
+import { useState } from "react";
 
 interface EmailDetailProps {
   email: Email | undefined;
   onClose?: () => void;
+  onEmailAction?: (action: "archive" | "delete" | "read", emailId: string) => void;
+  userEmail?: string;
+  provider?: string;
 }
 
-export function EmailDetail({ email, onClose }: EmailDetailProps) {
+export function EmailDetail({ email, onClose, onEmailAction, userEmail, provider }: EmailDetailProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [actionComplete, setActionComplete] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   if (!email) {
     return (
       <div className="hidden lg:flex flex-col h-full bg-gray-50 border-l items-center justify-center">
@@ -28,6 +36,53 @@ export function EmailDetail({ email, onClose }: EmailDetailProps) {
     .slice(0, 2);
 
   const avatarColor = email.from.avatar || "bg-gray-400";
+
+  const handleAction = async (action: "archive" | "delete" | "markRead" | "markUnread") => {
+    if (!userEmail || !provider) {
+      setError("User email or provider not available");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const endpoint = action === "archive"
+        ? `/api/email/${provider}/${email.id}/archive?email=${encodeURIComponent(userEmail)}`
+        : action === "delete"
+        ? `/api/email/${provider}/${email.id}?email=${encodeURIComponent(userEmail)}`
+        : `/api/email/${provider}/${email.id}/read?email=${encodeURIComponent(userEmail)}&read=${action === "markRead" ? "true" : "false"}`;
+
+      const method = action === "delete" ? "DELETE" : action === "archive" ? "POST" : "PUT";
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || `Failed to ${action} email`);
+      }
+
+      setActionComplete(action);
+      setTimeout(() => setActionComplete(null), 2000);
+
+      if (action === "archive" || action === "delete") {
+        onEmailAction?.(action, email.id);
+        setTimeout(() => onClose?.(), 500);
+      } else {
+        onEmailAction?.(action === "markRead" ? "read" : "read", email.id);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      console.error("Action error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-white border-l lg:border-l lg:border-gray-200">
@@ -94,6 +149,14 @@ export function EmailDetail({ email, onClose }: EmailDetailProps) {
               Unread
             </div>
           )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 text-red-700 text-sm rounded-md flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
         </div>
 
         {/* Email Body */}
@@ -116,6 +179,7 @@ export function EmailDetail({ email, onClose }: EmailDetailProps) {
           size="sm"
           className="gap-2"
           onClick={() => console.log("Reply")}
+          disabled={isLoading}
         >
           <Reply className="w-4 h-4" />
           <span className="hidden sm:inline">Reply</span>
@@ -125,6 +189,7 @@ export function EmailDetail({ email, onClose }: EmailDetailProps) {
           size="sm"
           className="gap-2"
           onClick={() => console.log("Forward")}
+          disabled={isLoading}
         >
           <Forward className="w-4 h-4" />
           <span className="hidden sm:inline">Forward</span>
@@ -133,19 +198,49 @@ export function EmailDetail({ email, onClose }: EmailDetailProps) {
           variant="ghost"
           size="sm"
           className="gap-2"
-          onClick={() => console.log("Archive")}
+          onClick={() => handleAction("archive")}
+          disabled={isLoading}
         >
-          <Archive className="w-4 h-4" />
-          <span className="hidden sm:inline">Archive</span>
+          {actionComplete === "archive" ? (
+            <>
+              <Check className="w-4 h-4" />
+              <span className="hidden sm:inline">Archived</span>
+            </>
+          ) : isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="hidden sm:inline">Archiving...</span>
+            </>
+          ) : (
+            <>
+              <Archive className="w-4 h-4" />
+              <span className="hidden sm:inline">Archive</span>
+            </>
+          )}
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={() => console.log("Delete")}
+          className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-50"
+          onClick={() => handleAction("delete")}
+          disabled={isLoading}
         >
-          <Trash2 className="w-4 h-4" />
-          <span className="hidden sm:inline">Delete</span>
+          {actionComplete === "delete" ? (
+            <>
+              <Check className="w-4 h-4" />
+              <span className="hidden sm:inline">Deleted</span>
+            </>
+          ) : isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="hidden sm:inline">Deleting...</span>
+            </>
+          ) : (
+            <>
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Delete</span>
+            </>
+          )}
         </Button>
       </div>
     </div>

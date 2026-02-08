@@ -414,8 +414,18 @@ export class ImapEmailProvider implements EmailProvider {
   }
 
   async markAsRead(emailId: string, read: boolean): Promise<void> {
-    // This is complex with IMAP as it requires finding the message by UID
-    // Implementation depends on how we store email UIDs
+    console.warn('[IMAP Provider] markAsRead not implemented for IMAP provider');
+    // IMAP has flags API but implementation requires UID tracking
+  }
+
+  async archiveEmail(emailId: string): Promise<void> {
+    console.warn('[IMAP Provider] archiveEmail not implemented for IMAP provider');
+    // IMAP would require moving to Archive folder
+  }
+
+  async deleteEmail(emailId: string): Promise<void> {
+    console.warn('[IMAP Provider] deleteEmail not implemented for IMAP provider');
+    // IMAP would require finding and deleting by UID
   }
 
   async getEmailDetail(emailId: string): Promise<ParsedEmail | null> {

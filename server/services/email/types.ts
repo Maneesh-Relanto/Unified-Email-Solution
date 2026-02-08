@@ -88,6 +88,16 @@ export interface EmailProvider {
   markAsRead(emailId: string, read: boolean): Promise<void>;
 
   /**
+   * Archive email
+   */
+  archiveEmail(emailId: string): Promise<void>;
+
+  /**
+   * Delete email permanently
+   */
+  deleteEmail(emailId: string): Promise<void>;
+
+  /**
    * Disconnect/cleanup
    */
   disconnect(): Promise<void>;

@@ -1072,6 +1072,294 @@ export async function getEmailDetail(req: Request, res: Response) {
 }
 
 /**
+ * Mark email as read
+ * PUT /api/email/:provider/:emailId/read?email=user@example.com&read=true
+ */
+export async function markEmailAsRead(req: Request, res: Response) {
+  try {
+    const { provider: providerParam, emailId } = req.params;
+    const userEmail = req.query.email as string;
+    const readParam = req.query.read as string;
+    const read = readParam === 'true';
+
+    if (!userEmail) {
+      return res.status(400).json({
+        error: 'Missing email parameter',
+        message: 'Please provide ?email=user@example.com',
+      });
+    }
+
+    if (!emailId) {
+      return res.status(400).json({
+        error: 'Missing emailId',
+        message: 'Email ID is required in URL',
+      });
+    }
+
+    if (!['true', 'false'].includes(readParam)) {
+      return res.status(400).json({
+        error: 'Invalid read parameter',
+        message: 'read must be "true" or "false"',
+      });
+    }
+
+    // Normalize provider
+    const provider = providerParam?.toLowerCase() === 'google' ? 'gmail' : providerParam?.toLowerCase();
+
+    if (!['gmail', 'outlook'].includes(provider)) {
+      return res.status(400).json({
+        error: 'Invalid provider',
+        message: 'Only gmail and outlook are supported',
+      });
+    }
+
+    console.log(`[Mark Read] Marking ${provider}/${emailId} as ${read ? 'read' : 'unread'}`);
+
+    // Get OAuth credential
+    const credentialKey = `${provider === 'gmail' ? 'google' : 'microsoft'}_${userEmail}`;
+    let credential = emailCredentialStore.getOAuthCredential(credentialKey);
+
+    if (!credential) {
+      return res.status(401).json({
+        error: 'No OAuth credential',
+        message: `Account ${userEmail} not authenticated with ${provider}`,
+      });
+    }
+
+    // Decrypt tokens
+    const decrypted = decryptTokens(credential);
+    if (!decrypted) {
+      return res.status(401).json({
+        error: 'Failed to decrypt credentials',
+        message: 'Please re-authenticate',
+      });
+    }
+
+    // Create OAuth provider
+    const oauthProvider = EmailProviderFactory.createProvider({
+      providerType: 'oauth',
+      email: credential.email,
+      provider: credential.provider as 'gmail' | 'outlook',
+      oauthConfig: {
+        clientId: '',
+        clientSecret: '',
+        accessToken: decrypted.accessToken,
+        refreshToken: decrypted.refreshToken,
+        expiresAt: credential.oauthToken.expiresAt,
+      },
+    });
+
+    const authenticated = await oauthProvider.authenticate();
+    if (!authenticated) {
+      return res.status(401).json({
+        error: 'Authentication failed',
+        message: 'Could not authenticate OAuth provider',
+      });
+    }
+
+    // Mark email as read
+    await oauthProvider.markAsRead(emailId, read);
+
+    res.json({
+      success: true,
+      message: `Email marked as ${read ? 'read' : 'unread'}`,
+    });
+  } catch (error) {
+    console.error('[Mark Read Error]:', error);
+    res.status(500).json({
+      error: 'Failed to mark email as read',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
+ * Archive email
+ * POST /api/email/:provider/:emailId/archive?email=user@example.com
+ */
+export async function archiveEmail(req: Request, res: Response) {
+  try {
+    const { provider: providerParam, emailId } = req.params;
+    const userEmail = req.query.email as string;
+
+    if (!userEmail) {
+      return res.status(400).json({
+        error: 'Missing email parameter',
+        message: 'Please provide ?email=user@example.com',
+      });
+    }
+
+    if (!emailId) {
+      return res.status(400).json({
+        error: 'Missing emailId',
+        message: 'Email ID is required in URL',
+      });
+    }
+
+    // Normalize provider
+    const provider = providerParam?.toLowerCase() === 'google' ? 'gmail' : providerParam?.toLowerCase();
+
+    if (!['gmail', 'outlook'].includes(provider)) {
+      return res.status(400).json({
+        error: 'Invalid provider',
+        message: 'Only gmail and outlook are supported',
+      });
+    }
+
+    console.log(`[Archive] Archiving ${provider}/${emailId}`);
+
+    // Get OAuth credential
+    const credentialKey = `${provider === 'gmail' ? 'google' : 'microsoft'}_${userEmail}`;
+    let credential = emailCredentialStore.getOAuthCredential(credentialKey);
+
+    if (!credential) {
+      return res.status(401).json({
+        error: 'No OAuth credential',
+        message: `Account ${userEmail} not authenticated with ${provider}`,
+      });
+    }
+
+    // Decrypt tokens
+    const decrypted = decryptTokens(credential);
+    if (!decrypted) {
+      return res.status(401).json({
+        error: 'Failed to decrypt credentials',
+        message: 'Please re-authenticate',
+      });
+    }
+
+    // Create OAuth provider
+    const oauthProvider = EmailProviderFactory.createProvider({
+      providerType: 'oauth',
+      email: credential.email,
+      provider: credential.provider as 'gmail' | 'outlook',
+      oauthConfig: {
+        clientId: '',
+        clientSecret: '',
+        accessToken: decrypted.accessToken,
+        refreshToken: decrypted.refreshToken,
+        expiresAt: credential.oauthToken.expiresAt,
+      },
+    });
+
+    const authenticated = await oauthProvider.authenticate();
+    if (!authenticated) {
+      return res.status(401).json({
+        error: 'Authentication failed',
+        message: 'Could not authenticate OAuth provider',
+      });
+    }
+
+    // Archive email
+    await oauthProvider.archiveEmail(emailId);
+
+    res.json({
+      success: true,
+      message: 'Email archived',
+    });
+  } catch (error) {
+    console.error('[Archive Error]:', error);
+    res.status(500).json({
+      error: 'Failed to archive email',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
+ * Delete email
+ * DELETE /api/email/:provider/:emailId?email=user@example.com
+ */
+export async function deleteEmail(req: Request, res: Response) {
+  try {
+    const { provider: providerParam, emailId } = req.params;
+    const userEmail = req.query.email as string;
+
+    if (!userEmail) {
+      return res.status(400).json({
+        error: 'Missing email parameter',
+        message: 'Please provide ?email=user@example.com',
+      });
+    }
+
+    if (!emailId) {
+      return res.status(400).json({
+        error: 'Missing emailId',
+        message: 'Email ID is required in URL',
+      });
+    }
+
+    // Normalize provider
+    const provider = providerParam?.toLowerCase() === 'google' ? 'gmail' : providerParam?.toLowerCase();
+
+    if (!['gmail', 'outlook'].includes(provider)) {
+      return res.status(400).json({
+        error: 'Invalid provider',
+        message: 'Only gmail and outlook are supported',
+      });
+    }
+
+    console.log(`[Delete] Deleting ${provider}/${emailId}`);
+
+    // Get OAuth credential
+    const credentialKey = `${provider === 'gmail' ? 'google' : 'microsoft'}_${userEmail}`;
+    let credential = emailCredentialStore.getOAuthCredential(credentialKey);
+
+    if (!credential) {
+      return res.status(401).json({
+        error: 'No OAuth credential',
+        message: `Account ${userEmail} not authenticated with ${provider}`,
+      });
+    }
+
+    // Decrypt tokens
+    const decrypted = decryptTokens(credential);
+    if (!decrypted) {
+      return res.status(401).json({
+        error: 'Failed to decrypt credentials',
+        message: 'Please re-authenticate',
+      });
+    }
+
+    // Create OAuth provider
+    const oauthProvider = EmailProviderFactory.createProvider({
+      providerType: 'oauth',
+      email: credential.email,
+      provider: credential.provider as 'gmail' | 'outlook',
+      oauthConfig: {
+        clientId: '',
+        clientSecret: '',
+        accessToken: decrypted.accessToken,
+        refreshToken: decrypted.refreshToken,
+        expiresAt: credential.oauthToken.expiresAt,
+      },
+    });
+
+    const authenticated = await oauthProvider.authenticate();
+    if (!authenticated) {
+      return res.status(401).json({
+        error: 'Authentication failed',
+        message: 'Could not authenticate OAuth provider',
+      });
+    }
+
+    // Delete email
+    await oauthProvider.deleteEmail(emailId);
+
+    res.json({
+      success: true,
+      message: 'Email deleted',
+    });
+  } catch (error) {
+    console.error('[Delete Error]:', error);
+    res.status(500).json({
+      error: 'Failed to delete email',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
  * Disconnect all providers (cleanup)
  * POST /api/email/disconnect-all
  */
