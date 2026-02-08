@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { UnifiedSidebar } from "@/components/UnifiedSidebar";
 import { EmailList } from "@/components/EmailList";
@@ -105,6 +105,9 @@ export default function UnifiedInbox() {
   
   // Status bar hook
   const statusBar = useStatusBar();
+  
+  // Track current loading message ID to clear it when switching providers
+  const currentLoadingIdRef = useRef<string | null>(null);
 
   // Initialize providers from OAuth accounts on mount
   useEffect(() => {
@@ -115,6 +118,12 @@ export default function UnifiedInbox() {
   useEffect(() => {
     if (!accountsLoaded) return; // Don't fetch until accounts are loaded
     
+    // Clear any existing loading message when switching providers
+    if (currentLoadingIdRef.current) {
+      statusBar.removeMessage(currentLoadingIdRef.current);
+      currentLoadingIdRef.current = null;
+    }
+    
     if (selectedProviderId === "all") {
       fetchAllOAuthEmails();
     } else {
@@ -122,6 +131,14 @@ export default function UnifiedInbox() {
     }
     // Reset to first page when provider changes
     setCurrentPage(1);
+    
+    // Cleanup function to clear loading message if component unmounts or provider changes
+    return () => {
+      if (currentLoadingIdRef.current) {
+        statusBar.removeMessage(currentLoadingIdRef.current);
+        currentLoadingIdRef.current = null;
+      }
+    };
   }, [selectedProviderId, accountsLoaded]);
 
   const fetchOAuthAccounts = async () => {
@@ -188,6 +205,12 @@ export default function UnifiedInbox() {
   const fetchAllOAuthEmails = async (isLoadMore: boolean = false) => {
     if (loadingEmails || loadingMore) return; // Prevent duplicate calls
     
+    // Clear any existing loading message before starting new fetch  
+    if (!isLoadMore && currentLoadingIdRef.current) {
+      statusBar.removeMessage(currentLoadingIdRef.current);
+      currentLoadingIdRef.current = null;
+    }
+    
     if (isLoadMore) {
       setLoadingMore(true);
     } else {
@@ -205,6 +228,7 @@ export default function UnifiedInbox() {
     
     // Show initial message immediately
     const loadingId = statusBar.showLoading('🔌 Contacting server... (0s)');
+    currentLoadingIdRef.current = loadingId; // Track the loading message ID
     
     // Update message every 1 second with elapsed time
     const messages = [
@@ -278,6 +302,7 @@ export default function UnifiedInbox() {
         updateProviderCounts(finalEmailList);
         
         statusBar.removeMessage(loadingId);
+        currentLoadingIdRef.current = null; // Clear the ref
         if (isLoadMore) {
           if (newEmailsCount > 0) {
             statusBar.showSuccess(`Loaded ${newEmailsCount} more email${newEmailsCount !== 1 ? 's' : ''}`);
@@ -293,6 +318,7 @@ export default function UnifiedInbox() {
         }
         setHasMore(false);
         statusBar.removeMessage(loadingId);
+        currentLoadingIdRef.current = null; // Clear the ref
         statusBar.showInfo('No emails found');
       }
     } catch (error) {
@@ -306,6 +332,7 @@ export default function UnifiedInbox() {
         setOauthEmails([]);
       }
       statusBar.removeMessage(loadingId);
+      currentLoadingIdRef.current = null; // Clear the ref
       statusBar.showError(errorMessage);
     } finally {
       setLoadingEmails(false);
@@ -316,6 +343,12 @@ export default function UnifiedInbox() {
   const fetchOAuthEmails = async (provider: string) => {
     if (loadingEmails) return; // Prevent duplicate calls
     
+    // Clear any existing loading message before starting new fetch
+    if (currentLoadingIdRef.current) {
+      statusBar.removeMessage(currentLoadingIdRef.current);
+      currentLoadingIdRef.current = null;
+    }
+    
     setLoadingEmails(true);
     setError(null);
     const providerName = provider === 'gmail' ? 'Gmail' : 'Outlook';
@@ -325,6 +358,7 @@ export default function UnifiedInbox() {
     
     // Show initial message immediately
     const loadingId = statusBar.showLoading(`🔌 Connecting to ${providerName}... (0s)`);
+    currentLoadingIdRef.current = loadingId; // Track the loading message ID
     
     // Update message every 1.2 seconds
     const messages = [
@@ -393,10 +427,12 @@ export default function UnifiedInbox() {
         updateProviderCounts(convertedEmails);
         
         statusBar.removeMessage(loadingId);
+        currentLoadingIdRef.current = null; // Clear the ref
         statusBar.showSuccess(`Loaded ${convertedEmails.length} emails from ${providerName}`);
       } else {
         setOauthEmails([]);
         statusBar.removeMessage(loadingId);
+        currentLoadingIdRef.current = null; // Clear the ref
         statusBar.showInfo(`No emails found in ${providerName}`);
       }
     } catch (error) {
@@ -407,6 +443,7 @@ export default function UnifiedInbox() {
       setError(errorMessage);
       setOauthEmails([]);
       statusBar.removeMessage(loadingId);
+      currentLoadingIdRef.current = null; // Clear the ref
       statusBar.showError(errorMessage);
     } finally {
       setLoadingEmails(false);
