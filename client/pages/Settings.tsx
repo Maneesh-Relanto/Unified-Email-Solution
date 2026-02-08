@@ -188,6 +188,9 @@ export default function SettingsPage() {
       
       // Fetch IMAP accounts
       const imapResponse = await fetch("/api/email/configured");
+      if (!imapResponse.ok) {
+        throw new Error(`Failed to fetch IMAP accounts: ${imapResponse.status}`);
+      }
       const imapData = await imapResponse.json();
       if (imapData.success && imapData.accounts) {
         allAccounts.push(...imapData.accounts);
@@ -195,6 +198,9 @@ export default function SettingsPage() {
       
       // Fetch OAuth accounts
       const oauthResponse = await fetch("/api/email/auth/status");
+      if (!oauthResponse.ok) {
+        throw new Error(`Failed to fetch OAuth status: ${oauthResponse.status}`);
+      }
       const oauthData = await oauthResponse.json();
       if (oauthData.success && oauthData.data?.providers) {
         const oauthAccounts = oauthData.data.providers.map((provider: any) => ({
@@ -370,7 +376,11 @@ export default function SettingsPage() {
     }
   };
 
-  const getProvider = (id: string) => PROVIDERS.find((p) => p.id === id);
+  const getProvider = (id: string) => {
+    // Map backend provider names ('google', 'microsoft') to PROVIDERS IDs ('gmail', 'outlook')
+    const normalizedId = id === 'google' ? 'gmail' : id === 'microsoft' ? 'outlook' : id;
+    return PROVIDERS.find((p) => p.id === normalizedId);
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

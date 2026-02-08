@@ -127,6 +127,9 @@ export default function UnifiedInbox() {
   
   // Track current fetch request to avoid race conditions when switching providers
   const currentRequestRef = useRef<{ providerId: string; timestamp: number } | null>(null);
+  
+  // Track the current loading message ID so we can remove it when switching providers
+  const currentLoadingIdRef = useRef<string | undefined>(undefined);
 
   // Initialize providers from OAuth accounts on mount
   useEffect(() => {
