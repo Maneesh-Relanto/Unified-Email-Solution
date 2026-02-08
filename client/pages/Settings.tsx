@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Mail, Trash2, Plus, AlertCircle, CheckCircle, Loader, ChevronRight, ArrowLeft, Eye, EyeOff, HelpCircle } from "lucide-react";
+import { Settings, Mail, Trash2, Plus, AlertCircle, CheckCircle, Loader, ChevronRight, ArrowLeft, Eye, EyeOff, HelpCircle, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
@@ -19,6 +19,8 @@ interface ProgressStep {
   status: "pending" | "in-progress" | "completed" | "failed";
   message?: string;
 }
+
+type SettingsTab = "accounts" | "add-account" | "help";
 
 const PROVIDERS = [
   { id: "gmail", name: "Gmail", icon: "📧", color: "bg-red-500" },
@@ -144,6 +146,7 @@ function ProgressModal({ isOpen, provider, email, onConfirm, onCancel, progressD
 }
 
 export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState<SettingsTab>("accounts");
   const [accounts, setAccounts] = useState<ConfiguredAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -350,7 +353,7 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="border-b border-border sticky top-0 bg-card">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/dashboard">
               <Button variant="ghost" size="icon">
@@ -362,40 +365,14 @@ export default function SettingsPage() {
                 <Settings className="w-6 h-6" />
                 Email Settings
               </h1>
-              <p className="text-sm text-muted-foreground">Manage your email accounts</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              asChild
-              variant="default"
-              size="sm"
-              title="Go to Dashboard"
-            >
-              <Link to="/">
-                Dashboard
-              </Link>
+            <Button asChild variant="default" size="sm">
+              <Link to="/">Dashboard</Link>
             </Button>
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              title="Go to Unified Inbox"
-            >
-              <Link to="/unified-inbox">
-                Unified Inbox
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              title="View troubleshooting guide"
-            >
-              <Link to="/troubleshooting">
-                <HelpCircle className="w-4 h-4 mr-2" />
-                Help & FAQ
-              </Link>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/unified-inbox">Unified Inbox</Link>
             </Button>
             <SecurityButton />
             <ThemeDropdown />
@@ -403,290 +380,395 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-4xl mx-auto px-6 py-8 w-full">
-        {/* Messages */}
-        {message && (
-          <>
-            {message.type === "error" ? (
-              <ErrorAlert
-                message={message.text}
-                details="Please check your credentials and try again, or use OAuth for automatic handling."
-                onDismiss={() => setMessage(null)}
-              />
-            ) : (
-              <div className={`p-4 rounded-lg mb-6 flex items-start gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800`}>
-                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-green-800 dark:text-green-200">
-                  {message.text}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Account Summary */}
-        {!loading && accounts.length > 0 && (
-          <section className="mb-8">
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <Mail className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Account Summary
-                </h2>
-              </div>
-              <div className="flex flex-col md:flex-row md:items-center gap-4">
-                <div className="flex-1">
-                  <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                    {accounts.length}
-                  </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {accounts.length === 1 ? 'Account Connected' : 'Accounts Connected'}
-                  </p>
-                </div>
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Connected Providers:
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {Array.from(new Set(accounts.map(acc => {
-                      const provider = getProvider(acc.provider);
-                      return provider?.name || acc.provider;
-                    }))).map(providerName => (
-                      <span
-                        key={providerName}
-                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-white dark:bg-slate-800 border border-gray-300 dark:border-gray-700"
-                      >
-                        {providerName}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Configured Accounts */}
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold">Connected Email Accounts</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                {accounts.length === 0 
-                  ? "No email addresses connected" 
-                  : `${accounts.length} email ${accounts.length === 1 ? 'address' : 'addresses'} connected`}
-              </p>
-            </div>
-          </div>
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader className="w-6 h-6 animate-spin text-primary" />
-            </div>
-          ) : accounts.length === 0 ? (
-            <div className="text-center py-8 border-2 border-dashed border-border rounded-lg">
-              <Mail className="w-12 h-12 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-muted-foreground">No email accounts connected yet</p>
-              <p className="text-sm text-muted-foreground">Add your first account below</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {accounts.map((account) => {
-                const provider = getProvider(account.provider);
-                return (
-                  <div 
-                    key={account.email} 
-                    className="flex items-center justify-between p-4 border-2 border-border rounded-lg hover:bg-accent/50 hover:border-primary/50 transition-all"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`${provider?.color} text-white rounded-full w-12 h-12 flex items-center justify-center text-xl shadow-md`}>
-                        {provider?.icon}
-                      </div>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
-                          <p className="text-base font-semibold text-foreground">{account.email}</p>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">
-                            Active
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <p className="text-sm text-muted-foreground">{provider?.name}</p>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                            style={{
-                              backgroundColor: (account.provider === 'google' || account.provider === 'microsoft') 
-                                ? 'rgb(59, 130, 246, 0.1)' 
-                                : 'rgb(168, 85, 247, 0.1)',
-                              color: (account.provider === 'google' || account.provider === 'microsoft') 
-                                ? 'rgb(59, 130, 246)' 
-                                : 'rgb(168, 85, 247)'
-                            }}
-                          >
-                            {(account.provider === 'google' || account.provider === 'microsoft') ? 'OAuth' : 'IMAP'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700"
-                      onClick={() => handleRemoveAccount(account.email)}
-                      disabled={removingEmail === account.email}
-                      title="Remove account"
-                    >
-                      {removingEmail === account.email ? (
-                        <Loader className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* Add New Account */}
-        <section>
-          <h2 className="text-lg font-semibold mb-4">Add New Account</h2>
-
-          {!selectedProvider ? (
-            <div className="grid md:grid-cols-2 gap-4">
-              {PROVIDERS.map((provider) => (
-                <button
-                  key={provider.id}
-                  onClick={() => setSelectedProvider(provider.id)}
-                  className={`p-4 rounded-lg border-2 transition-all text-left hover:border-primary hover:bg-accent ${
-                    selectedProvider === provider.id
-                      ? "border-primary bg-accent"
-                      : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`${provider.color} text-white rounded-full w-12 h-12 flex items-center justify-center text-2xl`}>
-                        {provider.icon}
-                      </div>
-                      <div>
-                        <p className="font-semibold">{provider.name}</p>
-                        <p className="text-xs text-muted-foreground">Click to add account</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-card border border-border rounded-lg p-6">
-              <div className="mb-6">
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl mx-auto w-full">
+        <div className="flex gap-6 p-6">
+          {/* Sidebar */}
+          <aside className="w-56 flex-shrink-0">
+            <div className="bg-card border border-border rounded-lg p-4 sticky top-20">
+              <nav className="space-y-2">
+                {/* Connected Accounts Tab */}
                 <button
                   onClick={() => {
+                    setActiveTab("accounts");
                     setSelectedProvider(null);
-                    setFormData({ email: "", password: "" });
                   }}
-                  className="flex items-center gap-2 text-sm text-primary hover:underline mb-4"
+                  className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-colors flex items-center gap-3 ${
+                    activeTab === "accounts"
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent text-foreground"
+                  }`}
                 >
-                  <ArrowLeft className="w-4 h-4" />
-                  Back to providers
+                  <Inbox className="w-4 h-4" />
+                  Connected Accounts
                 </button>
 
-                <div className="flex items-center gap-3 mb-6">
-                  <div className={`${getProvider(selectedProvider)?.color} text-white rounded-full w-12 h-12 flex items-center justify-center text-2xl`}>
-                    {getProvider(selectedProvider)?.icon}
+                {/* Add New Account Tab */}
+                <button
+                  onClick={() => {
+                    setActiveTab("add-account");
+                    setSelectedProvider(null);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-colors flex items-center gap-3 ${
+                    activeTab === "add-account"
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent text-foreground"
+                  }`}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add New Account
+                </button>
+
+                {/* Divider */}
+                <div className="border-t border-border my-2"></div>
+
+                {/* Help Tab */}
+                <button
+                  onClick={() => {
+                    setActiveTab("help");
+                    setSelectedProvider(null);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-colors flex items-center gap-3 ${
+                    activeTab === "help"
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent text-foreground"
+                  }`}
+                >
+                  <HelpCircle className="w-4 h-4" />
+                  Help & Support
+                </button>
+              </nav>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <div className="flex-1 min-w-0">
+            {/* Messages */}
+            {message && (
+              <>
+                {message.type === "error" ? (
+                  <ErrorAlert
+                    message={message.text}
+                    details="Please check your credentials and try again, or use OAuth for automatic handling."
+                    onDismiss={() => setMessage(null)}
+                  />
+                ) : (
+                  <div className="p-4 rounded-lg mb-6 flex items-start gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                    <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-green-800 dark:text-green-200">
+                      {message.text}
+                    </p>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      Add {getProvider(selectedProvider)?.name} Account
-                    </h3>
-                    {selectedProvider === "gmail" || selectedProvider === "outlook" ? (
-                      <p className="text-sm text-muted-foreground">
-                        Use secure OAuth authentication - no password stored
-                      </p>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        {selectedProvider === "gmail"
-                          ? "Use your Gmail address and App Password (16 chars with spaces)"
-                          : "Use your email address and password"}
-                      </p>
+                )}
+              </>
+            )}
+
+            {/* Tab: Connected Accounts */}
+            {activeTab === "accounts" && (
+              <div>
+                {/* Account Summary */}
+                {!loading && accounts.length > 0 && (
+                  <section className="mb-8">
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <Mail className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                          Account Summary
+                        </h2>
+                      </div>
+                      <div className="grid grid-cols-2 gap-6">
+                        <div>
+                          <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                            {accounts.length}
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            {accounts.length === 1 ? 'Account Connected' : 'Accounts Connected'}
+                          </p>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Connected Providers:
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {Array.from(new Set(accounts.map(acc => {
+                              const provider = getProvider(acc.provider);
+                              return provider?.name || acc.provider;
+                            }))).map(providerName => (
+                              <span
+                                key={providerName}
+                                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-white dark:bg-slate-800 border border-gray-300 dark:border-gray-700"
+                              >
+                                {providerName}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {/* Connected Email Accounts */}
+                <section>
+                  <div className="mb-6">
+                    <h2 className="text-lg font-semibold">Connected Email Accounts</h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {accounts.length === 0 
+                        ? "No email addresses connected" 
+                        : `${accounts.length} email ${accounts.length === 1 ? 'address' : 'addresses'} connected`}
+                    </p>
+                  </div>
+                  {loading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader className="w-6 h-6 animate-spin text-primary" />
+                    </div>
+                  ) : accounts.length === 0 ? (
+                    <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                      <Mail className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                      <p className="text-muted-foreground font-medium">No email accounts connected yet</p>
+                      <p className="text-sm text-muted-foreground mt-1">Add your first account to get started</p>
+                      <Button
+                        onClick={() => setActiveTab("add-account")}
+                        className="mt-4"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Account
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {accounts.map((account) => {
+                        const provider = getProvider(account.provider);
+                        return (
+                          <div 
+                            key={account.email} 
+                            className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/50 hover:border-primary/50 transition-all"
+                          >
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              <div className={`${provider?.color} text-white rounded-full w-12 h-12 flex items-center justify-center text-xl flex-shrink-0 shadow-md`}>
+                                {provider?.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-base font-semibold text-foreground truncate">{account.email}</p>
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium flex-shrink-0">
+                                    Active
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1.5">
+                                  <p className="text-sm text-muted-foreground">{provider?.name}</p>
+                                  <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                                    style={{
+                                      backgroundColor: (account.provider === 'google' || account.provider === 'microsoft') 
+                                        ? 'rgb(59, 130, 246, 0.1)' 
+                                        : 'rgb(168, 85, 247, 0.1)',
+                                      color: (account.provider === 'google' || account.provider === 'microsoft') 
+                                        ? 'rgb(59, 130, 246)' 
+                                        : 'rgb(168, 85, 247)'
+                                    }}
+                                  >
+                                    {(account.provider === 'google' || account.provider === 'microsoft') ? 'OAuth' : 'IMAP'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 flex-shrink-0 ml-4"
+                              onClick={() => handleRemoveAccount(account.email)}
+                              disabled={removingEmail === account.email}
+                              title="Remove account"
+                            >
+                              {removingEmail === account.email ? (
+                                <Loader className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              </div>
+            )}
+
+            {/* Tab: Add New Account */}
+            {activeTab === "add-account" && (
+              <div>
+                <h2 className="text-lg font-semibold mb-6">Add New Email Account</h2>
+
+                {!selectedProvider ? (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {PROVIDERS.map((provider) => (
+                      <button
+                        key={provider.id}
+                        onClick={() => setSelectedProvider(provider.id)}
+                        className={`p-6 rounded-lg border-2 transition-all text-left hover:border-primary hover:bg-accent `}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className={`${provider.color} text-white rounded-full w-14 h-14 flex items-center justify-center text-3xl`}>
+                              {provider.icon}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-lg">{provider.name}</p>
+                              <p className="text-xs text-muted-foreground">Click to add account</p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-card border border-border rounded-lg p-6">
+                    <div className="mb-6">
+                      <button
+                        onClick={() => {
+                          setSelectedProvider(null);
+                          setFormData({ email: "", password: "" });
+                        }}
+                        className="flex items-center gap-2 text-sm text-primary hover:underline mb-4"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        Back to providers
+                      </button>
+
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className={`${getProvider(selectedProvider)?.color} text-white rounded-full w-14 h-14 flex items-center justify-center text-3xl`}>
+                          {getProvider(selectedProvider)?.icon}
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold">
+                            Add {getProvider(selectedProvider)?.name} Account
+                          </h3>
+                          {selectedProvider === "gmail" || selectedProvider === "outlook" ? (
+                            <p className="text-sm text-muted-foreground">
+                              Use secure OAuth authentication - no password stored
+                            </p>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              {selectedProvider === "gmail"
+                                ? "Use your Gmail address and App Password (16 chars with spaces)"
+                                : "Use your email address and password"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* OAuth Form for Gmail and Outlook */}
+                    {(selectedProvider === "gmail" || selectedProvider === "outlook") && (
+                      <OAuthSettingsForm 
+                        provider={selectedProvider === "outlook" ? "microsoft" : "gmail"}
+                        onCancel={() => {
+                          setSelectedProvider(null);
+                          setFormData({ email: "", password: "" });
+                        }}
+                        onSuccess={() => {
+                          setSelectedProvider(null);
+                          setFormData({ email: "", password: "" });
+                          setActiveTab("accounts");
+                          fetchAccounts();
+                        }}
+                      />
                     )}
+
+                    {/* Manual Form for other providers */}
+                    {selectedProvider !== "gmail" && selectedProvider !== "outlook" && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Email Address</label>
+                          <input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            placeholder="your.email@provider.com"
+                            className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Password</label>
+                          <div className="relative">
+                            <input
+                              type={showPassword ? "text" : "password"}
+                              value={formData.password}
+                              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                              placeholder="Enter password"
+                              className="w-full px-3 py-2 pr-10 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                              title={showPassword ? "Hide password" : "Show password"}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="w-4 h-4" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <Button
+                          onClick={() => handleTestConnection(selectedProvider)}
+                          className="w-full"
+                          disabled={!formData.email || !formData.password}
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Test & Add Account
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab: Help & Support */}
+            {activeTab === "help" && (
+              <div>
+                <h2 className="text-lg font-semibold mb-6">Help & Support</h2>
+                <div className="space-y-4">
+                  <div className="bg-card border border-border rounded-lg p-6">
+                    <h3 className="font-semibold mb-2">📧 Adding Email Accounts</h3>
+                    <p className="text-sm text-muted-foreground">
+                      You can connect email accounts using OAuth (Gmail, Outlook) for secure authentication, or manual IMAP for other providers like Yahoo and Rediff.
+                    </p>
+                  </div>
+                  <div className="bg-card border border-border rounded-lg p-6">
+                    <h3 className="font-semibold mb-2">🔐 Security & Privacy</h3>
+                    <p className="text-sm text-muted-foreground">
+                      OAuth accounts are authenticated securely without storing your password. Manual IMAP credentials are not stored on our servers - only kept in your local browser session.
+                    </p>
+                  </div>
+                  <div className="bg-card border border-border rounded-lg p-6">
+                    <h3 className="font-semibold mb-2">❓ Troubleshooting</h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Having issues? Try the following:
+                    </p>
+                    <ul className="text-sm text-muted-foreground space-y-2 ml-4">
+                      <li>• Check that your email address is correct</li>
+                      <li>• Ensure you're using an app password (if required)</li>
+                      <li>• Verify IMAP is enabled in your email account settings</li>
+                      <li>• Try removing and re-adding the account</li>
+                    </ul>
                   </div>
                 </div>
               </div>
-
-              {/* OAuth Form for Gmail and Outlook */}
-              {(selectedProvider === "gmail" || selectedProvider === "outlook") && (
-                <OAuthSettingsForm 
-                  provider={selectedProvider === "outlook" ? "microsoft" : "gmail"}
-                  onCancel={() => {
-                    setSelectedProvider(null);
-                    setFormData({ email: "", password: "" });
-                  }}
-                  onSuccess={() => {
-                    setSelectedProvider(null);
-                    setFormData({ email: "", password: "" });
-                    fetchAccounts();
-                  }}
-                />
-              )}
-
-              {/* Manual Form for other providers */}
-              {selectedProvider !== "gmail" && selectedProvider !== "outlook" && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Email Address</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="your.email@provider.com"
-                      className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Password</label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        placeholder="Enter password"
-                        className="w-full px-3 py-2 pr-10 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        title={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={() => handleTestConnection(selectedProvider)}
-                    className="w-full"
-                    disabled={!formData.email || !formData.password}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Test & Add Account
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+            )}
+          </div>
+        </div>
       </main>
 
       {/* Progress Modal */}
-      {selectedProvider && (
+      {selectedProvider && activeTab === "add-account" && (
         <ProgressModal
           isOpen={showProgressModal}
           provider={selectedProvider}

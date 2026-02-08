@@ -213,21 +213,82 @@ pnpm build
 
 ---
 
+## � OAuth2 Setup & Configuration
+
+### For Developers: Project Setup with OAuth2
+
+Complete step-by-step guide to set up your local development environment and configure OAuth2 credentials:
+
+📖 **[OAuth2 Implementation Guide](./docs/OAUTH_IMPLEMENTATION.md)** includes:
+- ✅ Google Gmail OAuth setup (Client ID & Secret generation)
+- ✅ Microsoft Outlook OAuth setup (Azure AD registration)
+- ✅ PKCE (Proof Key for Code Exchange) security implementation
+- ✅ Encryption key generation for credential storage
+- ✅ Environment variables configuration (.env setup)
+- ✅ Token refresh mechanisms
+- ✅ Complete API endpoint reference
+
+Follow the guide above to get your project running with OAuth2 authentication.
+
+---
+
 ## 🔒 Security Architecture
 
-### OAuth Token Management
+### What is OAuth2 & Why Does Emailify Use It?
+
+**OAuth2** is an industry-standard authorization protocol that allows you to securely grant third-party applications access to your email account without sharing your password. Instead of trusting Emailify with your actual credentials, OAuth2 creates a secure token that grants specific permissions.
+
+#### Why OAuth2 Makes Emailify More Secure
+
+| Feature | Benefit |
+|---------|---------|
+| **No Password Sharing** | You never give Emailify your email password. Only OAuth2 tokens are used. |
+| **Limited Scope** | OAuth2 tokens can be restricted to specific permissions (e.g., "read emails only" without send access). |
+| **Provider-Controlled** | Google, Microsoft, and other providers control the authentication. If your account is compromised, revoke OAuth2 on that provider's dashboard. |
+| **Automatic Revocation** | Tokens expire automatically; no permanent login credentials are stored. |
+| **No Third-Party Servers** | Your token never goes to intermediate servers. It goes directly between you and the email provider. |
+| **Audit Trail** | Email providers maintain logs of which apps accessed your account and when. You can revoke access anytime. |
+
+#### How Emailify Implements OAuth2 Securely
+
+1. **PKCE Verification** - Authorization code interception protection
+2. **Token Encryption** - Tokens encrypted at-rest using AES-256-CBC
+3. **State Tokens** - 64-character random tokens prevent CSRF attacks
+4. **Automatic Refresh** - Tokens refreshed before expiry without re-entering credentials
+5. **Local Storage Only** - Encrypted tokens stored on your machine, never on external servers
+
+#### Example: Gmail vs. Emailify
+
+```
+❌ INSECURE: Gmail App Password
+   You: Enter your Gmail password into Emailify
+   → Password stored on server
+   → Server has full access to your account forever
+   → Compromised = hacker gets your password
+
+✅ SECURE: Gmail OAuth2
+   You: Click "Sign in with Google" → Grant permission to Emailify
+   → Your password stays secret at Google
+   → Emailify gets a limited token (expires in ~1 hour)
+   → Token stored encrypted, only in your browser
+   → Compromised = token is quickly invalidated, your password stays safe
+```
+
+### Other Security Measures
+
+#### OAuth Token Management
 - Tokens encrypted at-rest in local storage
 - No transmission to external servers
 - Automatic token refresh when expired
 - Secure credential validation before each operation
 
-### Data Validation
+#### Data Validation
 - Zod runtime validation on all inputs
 - TypeScript strict mode for compile-time safety
 - CORS properly configured to prevent cross-origin attacks
 - Input sanitization on email operations
 
-### Compliance
+#### Compliance
 - GDPR compliant (no data collection)
 - CCPA compliant (no data sales)
 - No telemetry or analytics tracking
