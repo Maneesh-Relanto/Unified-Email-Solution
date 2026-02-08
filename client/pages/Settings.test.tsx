@@ -120,7 +120,7 @@ describe('Settings Page Logic', () => {
     expect(isValidPassword('12345678')).toBe(true);
   });
 
-  it('should handle form submission state', () => {
+  it('should handle form submission state', async () => {
     const handleTestConnection = async (email: string, password: string) => {
       if (!email || !password) {
         return { error: 'Email and password are required' };
@@ -129,10 +129,13 @@ describe('Settings Page Logic', () => {
       return { success: true, message: 'Connection test passed' };
     };
 
-    expect(handleTestConnection('', 'password')).resolves.toEqual({
+    const result1 = await handleTestConnection('', 'password');
+    expect(result1).toEqual({
       error: 'Email and password are required',
     });
-    expect(handleTestConnection('user@gmail.com', '')).resolves.toEqual({
+
+    const result2 = await handleTestConnection('user@gmail.com', '');
+    expect(result2).toEqual({
       error: 'Email and password are required',
     });
   });
