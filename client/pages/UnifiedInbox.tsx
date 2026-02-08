@@ -97,10 +97,8 @@ export default function UnifiedInbox() {
   const [hasMore, setHasMore] = useState(true);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [emailOffsets, setEmailOffsets] = useState<Record<string, number>>({}); // Track offset per provider
-  const emailsPerPage = 20;
   const INITIAL_LOAD = 20;
   const LOAD_MORE_BATCH = 20;
   
@@ -133,8 +131,6 @@ export default function UnifiedInbox() {
     } else {
       fetchOAuthEmails(selectedProviderId);
     }
-    // Reset to first page when provider changes
-    setCurrentPage(1);
     
     // Cleanup function to clear loading message if component unmounts or provider changes
     return () => {
@@ -166,7 +162,7 @@ export default function UnifiedInbox() {
         // Remove duplicates (in case multiple accounts from same provider)
         const uniqueProviders = Array.from(
           new Map(oauthProviders.map((p: Provider) => [p.id, p])).values()
-        );
+        ) as Provider[];
         
         setProviders(uniqueProviders);
         setAccountsLoaded(true); // Mark accounts as loaded
@@ -198,9 +194,10 @@ export default function UnifiedInbox() {
         
         console.log(`[updateProviderCounts] Provider ${provider.id}: ${providerEmails.length} emails`);
         
+        // Cast the emails to Email[] since we're converting OAuthEmail to Email
         return {
           ...provider,
-          emails: providerEmails,
+          emails: providerEmails as Email[],
         };
       })
     );
