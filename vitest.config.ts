@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    environment: 'node',
+    environment: 'jsdom',
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -23,7 +23,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(__dirname, './client'),
     },
   },
 });
