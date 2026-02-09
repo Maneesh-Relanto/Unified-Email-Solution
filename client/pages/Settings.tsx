@@ -7,7 +7,9 @@ import { SecurityButton } from "@/components/SecurityButton";
 import { OAuthSettingsForm } from "@/components/OAuthSettingsForm";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import { TTLConfigurationDialog } from "@/components/TTLConfigurationDialog";
+import { EmailLoadingSettingsDialog } from "@/components/EmailLoadingSettingsDialog";
 import { useTTLConfig } from "@/hooks/use-ttl-config";
+import { useEmailLoadingConfig } from "@/hooks/use-email-loading-config";
 
 interface ConfiguredAccount {
   email: string;
@@ -182,7 +184,9 @@ export default function SettingsPage() {
   const [removingEmail, setRemovingEmail] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showTTLConfig, setShowTTLConfig] = useState(false);
+  const [showEmailLoadingConfig, setShowEmailLoadingConfig] = useState(false);
   const { ttlConfig } = useTTLConfig();
+  const { config: emailLoadingConfig } = useEmailLoadingConfig();
 
   // Fetch configured accounts on load (both IMAP and OAuth)
   const fetchAccounts = async () => {
@@ -815,13 +819,23 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <Button
-                      onClick={() => setShowTTLConfig(true)}
-                      className="flex items-center gap-2"
-                    >
-                      <Clock className="w-4 h-4" />
-                      Configure Cache TTL
-                    </Button>
+                    <div className="flex flex-col gap-3">
+                      <Button
+                        onClick={() => setShowTTLConfig(true)}
+                        className="flex items-center gap-2"
+                      >
+                        <Clock className="w-4 h-4" />
+                        Configure Cache TTL
+                      </Button>
+                      <Button
+                        onClick={() => setShowEmailLoadingConfig(true)}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                      >
+                        <Loader className="w-4 h-4" />
+                        Configure Email Loading
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Features Card */}
@@ -914,6 +928,9 @@ export default function SettingsPage() {
 
       {/* Cache TTL Configuration Dialog */}
       <TTLConfigurationDialog open={showTTLConfig} onOpenChange={setShowTTLConfig} />
+      
+      {/* Email Loading Configuration Dialog */}
+      <EmailLoadingSettingsDialog open={showEmailLoadingConfig} onOpenChange={setShowEmailLoadingConfig} />
     </div>
   );
 }

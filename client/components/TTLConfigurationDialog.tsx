@@ -3,7 +3,7 @@
  * Allows users to customize cache TTL for each email provider
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,9 +47,11 @@ export function TTLConfigurationDialog({ open, onOpenChange }: TTLConfigurationP
   const [syncMode, setSyncMode] = useState<'independent' | 'minimum' | 'all'>('independent');
 
   // Sync local config when dialog opens
-  if (open && isLoaded) {
-    setLocalConfig(ttlConfig);
-  }
+  useEffect(() => {
+    if (open && isLoaded) {
+      setLocalConfig(ttlConfig);
+    }
+  }, [open, isLoaded]); // Sync when dialog opens, don't depend on ttlConfig to avoid loops
 
   const handleSave = () => {
     // Apply changes

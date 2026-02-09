@@ -6,6 +6,7 @@ import { EmailDetail } from "@/components/EmailDetail";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
 import { StatusBar, useStatusBar } from "@/components/StatusBar";
+import { EmailLoadingTimeoutDialog } from "@/components/EmailLoadingTimeoutDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,6 +18,7 @@ import { LayoutGrid, Settings, Loader, Type, RotateCcw } from "lucide-react";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import type { Email } from "@/lib/mock-emails";
 import { useEmailCache } from "@/hooks/use-email-cache-hook";
+import { useEmailLoadingConfig } from "@/hooks/use-email-loading-config";
 
 /**
  * Normalize email.from field to consistent { name, email } format
@@ -121,11 +123,14 @@ export default function UnifiedInbox() {
   const [emailOffsets, setEmailOffsets] = useState<Record<string, number>>({}); // Track offset per provider
   const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium'); // Font size preference
   const [showCacheInfo, setShowCacheInfo] = useState(true); // Show cache status in UI
-  const INITIAL_LOAD = 20;
-  const LOAD_MORE_BATCH = 20;
+  const [showTimeoutDialog, setShowTimeoutDialog] = useState(false); // Show timeout warning dialog
+  const [elapsedSeconds, setElapsedSeconds] = useState(0); // Track elapsed time for timeout
   
   // Status bar hook
   const statusBar = useStatusBar();
+  
+  // Email loading settings hook - provides configurable batch size and timeout
+  const { config: emailLoadingConfig } = useEmailLoadingConfig();
   
   // TIER 1: Email Cache Hook - checks sessionStorage for cached emails
   const emailCache = useEmailCache(selectedProviderId);
@@ -135,6 +140,10 @@ export default function UnifiedInbox() {
   
   // Track the current loading message ID so we can remove it when switching providers
   const currentLoadingIdRef = useRef<string | undefined>(undefined);
+  
+  // Track timeout handling
+  const timeoutHandledRef = useRef<boolean>(false);
+  const timeoutIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // Initialize providers from OAuth accounts on mount
   useEffect(() => {
@@ -273,6 +282,8 @@ export default function UnifiedInbox() {
       setLoadingEmails(true);
       setOauthEmails([]); // Clear existing emails on fresh load
       setHasMore(true);
+      setElapsedSeconds(0); // Reset elapsed time
+      timeoutHandledRef.current = false; // Reset timeout flag
     }
     setError(null);
     
@@ -280,10 +291,11 @@ export default function UnifiedInbox() {
     let messageStep = 0;
     
     const skip = isLoadMore ? oauthEmails.length : 0;
-    const limit = isLoadMore ? LOAD_MORE_BATCH : INITIAL_LOAD;
+    const limit = isLoadMore ? emailLoadingConfig.batchSize : emailLoadingConfig.batchSize;
+    const timeoutMs = emailLoadingConfig.timeoutSeconds * 1000;
     
     // Show initial message immediately
-    const loadingId = statusBar.showLoading('🔌 Contacting server... (0s)');
+    const loadingId = statusBar.showLoading(`🔌 Contacting server... (0s)`);
     currentLoadingIdRef.current = loadingId; // Track the loading message ID
     
     // Update message every 1 second with elapsed time
@@ -297,15 +309,31 @@ export default function UnifiedInbox() {
     
     const updateInterval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      setElapsedSeconds(elapsed);
       messageStep = Math.min(messageStep + 1, messages.length - 1);
       statusBar.showLoading(`${messages[messageStep]}... (${elapsed}s)`, loadingId);
-    }, 1500);
+      
+      console.log(`[⏱️ UnifiedInbox] Elapsed: ${elapsed}s / Timeout: ${emailLoadingConfig.timeoutSeconds}s`);
+      
+      // Check timeout and show dialog if exceeded
+      if (!isLoadMore && elapsed >= emailLoadingConfig.timeoutSeconds && !timeoutHandledRef.current) {
+        console.log(`[🚨 UnifiedInbox] TIMEOUT TRIGGERED! Showing timeout dialog...`);
+        timeoutHandledRef.current = true;
+        setShowTimeoutDialog(true);
+      }
+    }, 1000);
     
     try {
       // Store request timestamp before fetching
       const requestTimestamp = currentRequestRef.current?.timestamp;
       
-      console.log(`[UnifiedInbox] Fetching OAuth emails (skip: ${skip}, limit: ${limit})...`);
+      console.log('\n═══════════════════════════════════════════════════════════════');
+      console.log('[🔄 UnifiedInbox] 📧 FETCHING ALL OAUTH EMAILS');
+      console.log(`  Batch Size (limit): ${limit}`);
+      console.log(`  Pagination (skip): ${skip}`);
+      console.log(`  Timeout: ${emailLoadingConfig.timeoutSeconds}s`);
+      console.log('═══════════════════════════════════════════════════════════════\n');
+      
       const response = await fetch(`/api/email/oauth/all?limit=${limit}&skip=${skip}`);
       
       // Clear interval
@@ -328,9 +356,26 @@ export default function UnifiedInbox() {
       }
 
       const data = await response.json();
-      console.log('[UnifiedInbox] All emails response:', data);
+      
+      console.log('\n═══════════════════════════════════════════════════════════════');
+      console.log('[📬 UnifiedInbox] 📧 RESPONSE RECEIVED');
+      console.log(`  Emails returned: ${data.emails?.length || 0}`);
+      console.log(`  Total fetched from all providers: ${data.totalFetched || 0}`);
+      console.log(`  Requested batch size: ${limit}`);
+      console.log(`  Has more available: ${data.hasMore}`);
+      console.log(`  Providers queried: ${data.accounts}`);
+      console.log('═══════════════════════════════════════════════════════════════\n');
+      
+      if (data.debug?.providerMetrics) {
+        console.log('[UnifiedInbox] Provider metrics:');
+        data.debug.providerMetrics.forEach((metric: any) => {
+          console.log(`  - ${metric.provider}: ${metric.count} emails (${metric.duration}ms)`);
+        });
+        console.log();
+      }
+      
       console.log('[UnifiedInbox] Sample email from field:', data.emails?.[0]?.from);
-      console.log(`[UnifiedInbox] Emails fetched: ${data.emails?.length || 0}, hasMore: ${data.hasMore}`);
+      console.log(`[UnifiedInbox] Returning: ${data.emails?.length || 0} of ${data.totalFetched || 0} fetched emails`);
 
       if (data.emails) {
         const convertedEmails: OAuthEmail[] = data.emails.map((email: any) => {
@@ -374,6 +419,7 @@ export default function UnifiedInbox() {
         // Update provider email counts by provider type
         updateProviderCounts(finalEmailList);
         
+        setShowTimeoutDialog(false);
         statusBar.removeMessage(loadingId);
         currentLoadingIdRef.current = null; // Clear the ref
         if (isLoadMore) {
@@ -390,6 +436,7 @@ export default function UnifiedInbox() {
           setOauthEmails([]);
         }
         setHasMore(false);
+        setShowTimeoutDialog(false);
         statusBar.removeMessage(loadingId);
         currentLoadingIdRef.current = null; // Clear the ref
         statusBar.showInfo('No emails found');
@@ -404,12 +451,17 @@ export default function UnifiedInbox() {
       if (!isLoadMore) {
         setOauthEmails([]);
       }
+      setShowTimeoutDialog(false);
       statusBar.removeMessage(loadingId);
       currentLoadingIdRef.current = null; // Clear the ref
       statusBar.showError(errorMessage);
     } finally {
       setLoadingEmails(false);
       setLoadingMore(false);
+      if (timeoutIntervalRef.current) {
+        clearInterval(timeoutIntervalRef.current);
+        timeoutIntervalRef.current = undefined;
+      }
     }
   };
 
@@ -428,13 +480,15 @@ export default function UnifiedInbox() {
       setLoadingEmails(true);
       setOauthEmails([]); // Clear existing emails on fresh load
       setHasMore(true);
+      setElapsedSeconds(0); // Reset elapsed time
+      timeoutHandledRef.current = false; // Reset timeout flag
     }
     setError(null);
     const providerName = provider === 'gmail' ? 'Gmail' : 'Outlook';
     
     const currentOffset = emailOffsets[provider] || 0;
     const skip = isLoadMore ? currentOffset : 0;
-    const limit = isLoadMore ? LOAD_MORE_BATCH : INITIAL_LOAD;
+    const limit = isLoadMore ? emailLoadingConfig.batchSize : emailLoadingConfig.batchSize;
     
     // Show initial message immediately
     const loadingId = isLoadMore ? undefined : statusBar.showLoading(`🔌 Connecting to ${providerName}... (0s)`);
@@ -445,7 +499,7 @@ export default function UnifiedInbox() {
     const startTime = Date.now();
     let messageStep = 0;
     
-    // Update message every 1.2 seconds (only for initial load)
+    // Update message every 1 second (only for initial load)
     const messages = [
       `🔌 Connecting to ${providerName}`,
       `🔑 Authenticating ${providerName}`,
@@ -455,11 +509,18 @@ export default function UnifiedInbox() {
     
     const updateInterval = !isLoadMore ? setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      setElapsedSeconds(elapsed);
       messageStep = Math.min(messageStep + 1, messages.length - 1);
       if (loadingId) {
         statusBar.showLoading(`${messages[messageStep]}... (${elapsed}s)`, loadingId);
       }
-    }, 1200) : undefined;
+      
+      // Check timeout and show dialog if exceeded
+      if (elapsed >= emailLoadingConfig.timeoutSeconds && !timeoutHandledRef.current) {
+        timeoutHandledRef.current = true;
+        setShowTimeoutDialog(true);
+      }
+    }, 1000) : undefined;
     
     try {
       // Store request timestamp before fetching
@@ -487,7 +548,14 @@ export default function UnifiedInbox() {
         return;
       }
 
-      console.log(`[UnifiedInbox] Fetching ${provider} emails for:`, account.email, `(skip: ${skip}, limit: ${limit})`);
+      console.log('\n═══════════════════════════════════════════════════════════════');
+      console.log(`[🔄 UnifiedInbox] 📧 FETCHING ${provider.toUpperCase()} EMAILS`);
+      console.log(`  Email: ${account.email}`);
+      console.log(`  Batch Size (limit): ${limit}`);
+      console.log(`  Pagination (skip): ${skip}`);
+      console.log(`  Timeout: ${emailLoadingConfig.timeoutSeconds}s`);
+      console.log('═══════════════════════════════════════════════════════════════\n');
+      
       const encodedEmail = encodeURIComponent(account.email);
       const response = await fetch(`/api/email/oauth/provider/${encodedEmail}?limit=${limit}&skip=${skip}`);
       
@@ -568,6 +636,7 @@ export default function UnifiedInbox() {
         // Update provider email counts for this specific provider
         updateProviderCounts(finalEmailList);
         
+        setShowTimeoutDialog(false);
         if (loadingId) {
           statusBar.removeMessage(loadingId);
           currentLoadingIdRef.current = null; // Clear the ref
@@ -586,6 +655,7 @@ export default function UnifiedInbox() {
           setOauthEmails([]);
         }
         setHasMore(false);
+        setShowTimeoutDialog(false);
         if (loadingId) {
           statusBar.removeMessage(loadingId);
           currentLoadingIdRef.current = null; // Clear the ref
@@ -601,6 +671,7 @@ export default function UnifiedInbox() {
       if (!isLoadMore) {
         setOauthEmails([]);
       }
+      setShowTimeoutDialog(false);
       if (loadingId) {
         statusBar.removeMessage(loadingId);
         currentLoadingIdRef.current = null; // Clear the ref
@@ -609,6 +680,10 @@ export default function UnifiedInbox() {
     } finally {
       setLoadingEmails(false);
       setLoadingMore(false);
+      if (timeoutIntervalRef.current) {
+        clearInterval(timeoutIntervalRef.current);
+        timeoutIntervalRef.current = undefined;
+      }
     }
   };
 
@@ -896,7 +971,7 @@ export default function UnifiedInbox() {
                         </>
                       ) : (
                         <>
-                          📨 Load More ({LOAD_MORE_BATCH} more)
+                          📨 Load More ({emailLoadingConfig.batchSize} more)
                         </>
                       )}
                     </Button>
@@ -937,6 +1012,27 @@ export default function UnifiedInbox() {
       <StatusBar
         messages={statusBar.messages}
         onDismiss={statusBar.removeMessage}
+      />
+      
+      {/* Email Loading Timeout Dialog */}
+      <EmailLoadingTimeoutDialog
+        open={showTimeoutDialog}
+        elapsedSeconds={elapsedSeconds}
+        timeoutSeconds={emailLoadingConfig.timeoutSeconds}
+        onContinue={() => {
+          setShowTimeoutDialog(false);
+          timeoutHandledRef.current = false;
+        }}
+        onCancel={() => {
+          setShowTimeoutDialog(false);
+          setLoadingEmails(false);
+          setLoadingMore(false);
+          if (currentLoadingIdRef.current) {
+            statusBar.removeMessage(currentLoadingIdRef.current);
+            currentLoadingIdRef.current = null;
+          }
+          statusBar.showInfo('Email loading cancelled');
+        }}
       />
     </div>
   );

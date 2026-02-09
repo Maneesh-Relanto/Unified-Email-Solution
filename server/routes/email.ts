@@ -308,32 +308,62 @@ export async function getAllOAuthEmails(req: Request, res: Response) {
 
     const allEmails = [];
     const errors = [];
+    const providerMetrics: any[] = [];
+
+    console.log(`\n[getAllOAuthEmails] Fetching from ${allCredentials.length} providers with limit=${limit}, skip=${skip}`);
 
     // Fetch from each account
-    for (const credential of allCredentials) {
+    for (let i = 0; i < allCredentials.length; i++) {
+      const credential = allCredentials[i];
+      const startTime = Date.now();
       try {
+        console.log(`  [${i + 1}/${allCredentials.length}] Fetching from ${credential.email}...`);
         const result = await fetchEmailsFromProvider(credential, limit, skip, unreadOnly);
+        const duration = Date.now() - startTime;
         
         if (result.error) {
+          console.log(`    ❌ Error: ${result.error}`);
           errors.push(result.error);
         } else {
+          console.log(`    ✓ Got ${result.emails.length} emails (${duration}ms)`);
           allEmails.push(...result.emails);
+          providerMetrics.push({
+            provider: credential.email,
+            count: result.emails.length,
+            duration,
+          });
         }
       } catch (error) {
-        errors.push(`${credential.email}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const errorMsg = `${credential.email}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        console.log(`    ❌ Exception: ${errorMsg}`);
+        errors.push(errorMsg);
       }
     }
 
     // Sort by date descending
     allEmails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+    // CRITICAL FIX: Truncate to enforce batch size limit ACROSS ALL PROVIDERS
+    // Don't return more than limit emails total (not limit per provider!)
+    const finalEmails = allEmails.slice(0, limit);
+    const hasMore = allEmails.length > limit;
+
+    console.log(`[getAllOAuthEmails] Total fetched: ${allEmails.length}, Returning: ${finalEmails.length}, Has more: ${hasMore}\n`);
+
     res.json({
       success: true,
-      count: allEmails.length,
+      count: finalEmails.length,
+      totalFetched: allEmails.length,
       accounts: allCredentials.length,
       errors: errors.length > 0 ? errors : undefined,
-      emails: allEmails,
-      hasMore: allEmails.length === limit, // If we got full limit, there might be more
+      debug: {
+        limit,
+        skip,
+        hasMore,
+        providerMetrics,
+      },
+      emails: finalEmails,
+      hasMore,
     });
   } catch (error) {
     console.error('[OAuth Email Fetch Error]', error);
