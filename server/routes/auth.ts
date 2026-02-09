@@ -342,6 +342,7 @@ export async function handleAuthStatus(req: Request, res: Response) {
         expiresAt: cred.oauthToken.expiresAt,
         isExpired: isTokenExpired(cred.oauthToken.expiresAt),
         createdAt: cred.createdAt instanceof Date ? cred.createdAt.toISOString() : cred.createdAt,
+        updatedAt: cred.updatedAt instanceof Date ? cred.updatedAt.toISOString() : cred.updatedAt,
       })),
     };
 

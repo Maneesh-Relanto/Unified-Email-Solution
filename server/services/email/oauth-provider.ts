@@ -248,8 +248,11 @@ export class OAuthEmailProvider implements EmailProvider {
       this.refreshToken = newToken.refreshToken;
       this.expiresAt = newToken.expiresAt;
 
-      // Update authorization header
+      // Update authorization header (both common and default headers to ensure it's used)
       this.apiClient.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`;
+      this.apiClient.defaults.headers['Authorization'] = `Bearer ${this.accessToken}`;
+      
+      console.log(`[OAuth ${this.provider}] Updated access token: ${this.accessToken.substring(0, 30)}...`);
 
       // Update stored credential
       const key = `${this.provider}_${this.email}`;
@@ -272,7 +275,8 @@ export class OAuthEmailProvider implements EmailProvider {
     try {
       if (this.provider === 'gmail' || this.provider === 'google') {
         console.log('[OAuth gmail] Fetching user profile from Gmail API...');
-        console.log(`[OAuth gmail] Authorization header: Bearer ${this.accessToken.substring(0, 20)}...`);
+        console.log(`[OAuth gmail] Current stored token: ${this.accessToken.substring(0, 30)}...`);
+        console.log(`[OAuth gmail] Header from apiClient: ${this.apiClient.defaults.headers.common['Authorization']?.toString().substring(0, 50) || 'NOT SET'}`);
         
         const response = await this.apiClient.get(
           'https://www.googleapis.com/oauth2/v2/userinfo'

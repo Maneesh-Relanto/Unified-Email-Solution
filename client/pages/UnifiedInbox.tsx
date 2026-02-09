@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LayoutGrid, Settings, Loader, Type, RotateCcw } from "lucide-react";
+import { LayoutGrid, Settings, Loader, Type, RotateCcw, AlertCircle, X } from "lucide-react";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import type { Email } from "@/lib/mock-emails";
 import { useEmailCache } from "@/hooks/use-email-cache-hook";
@@ -110,7 +110,7 @@ function getProviderFromEmail(email: Email | undefined): string {
 }
 
 export default function UnifiedInbox() {
-  const [selectedProviderId, setSelectedProviderId] = useState<string>("all");
+  const [selectedProviderId, setSelectedProviderId] = useState<string>("dashboard");
   const [selectedEmailId, setSelectedEmailId] = useState<string | undefined>();
   const [oauthEmails, setOauthEmails] = useState<OAuthEmail[]>([]);
   const [oauthAccounts, setOauthAccounts] = useState<OAuthAccount[]>([]);
@@ -119,8 +119,10 @@ export default function UnifiedInbox() {
   const [hasMore, setHasMore] = useState(true);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthError, setIsAuthError] = useState(false); // Track if error is authentication related
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [emailOffsets, setEmailOffsets] = useState<Record<string, number>>({}); // Track offset per provider
+  const [providerEmailsCache, setProviderEmailsCache] = useState<Record<string, OAuthEmail[]>>({}); // Cache emails per provider to preserve counts
   const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium'); // Font size preference
   const [showCacheInfo, setShowCacheInfo] = useState(true); // Show cache status in UI
   const [showTimeoutDialog, setShowTimeoutDialog] = useState(false); // Show timeout warning dialog
@@ -144,18 +146,51 @@ export default function UnifiedInbox() {
   // Track timeout handling
   const timeoutHandledRef = useRef<boolean>(false);
   const timeoutIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  
+  // Track last error time to prevent infinite retry loops
+  const lastErrorTimeRef = useRef<number>(0);
+  const ERROR_COOLDOWN_MS = 5000; // Don't retry for 5 seconds after an error
 
   // Initialize providers from OAuth accounts on mount
   useEffect(() => {
     fetchOAuthAccounts();
   }, []);
 
+  // Set default provider to first account when accounts are loaded
+  useEffect(() => {
+    if (accountsLoaded && providers.length > 0 && !selectedProviderId) {
+      const firstProviderId = providers[0].id;
+      console.log('[UnifiedInbox] Setting default provider to first account:', firstProviderId);
+      setSelectedProviderId(firstProviderId);
+    }
+  }, [accountsLoaded, providers, selectedProviderId]);
+
   // Fetch emails when provider changes (only after accounts are loaded)
   useEffect(() => {
     if (!accountsLoaded) return; // Don't fetch until accounts are loaded
     
+    // Skip fetching for dashboard view
+    if (selectedProviderId === "dashboard") {
+      console.log('[UnifiedInbox] Dashboard selected - no email fetching');
+      setOauthEmails([]); // Clear emails when showing dashboard
+      setSelectedEmailId(undefined); // Clear selected email
+      return;
+    }
+    
+    // CRITICAL: Clear existing emails AND selected email immediately when provider changes
+    // This prevents showing Gmail emails when switching to Outlook
+    // and prevents trying to fetch Outlook emails with Gmail provider
     console.log('[UnifiedInbox] Provider changed to:', selectedProviderId);
-    console.log('[UnifiedInbox] Current oauthEmails count:', oauthEmails.length);
+    console.log('[UnifiedInbox] Clearing existing emails and selection before switch');
+    setOauthEmails([]);
+    setSelectedEmailId(undefined); // Clear email selection to prevent cross-provider fetch errors
+    
+    // Prevent infinite retry loops - don't fetch if we just had an error
+    const timeSinceLastError = Date.now() - lastErrorTimeRef.current;
+    if (timeSinceLastError < ERROR_COOLDOWN_MS) {
+      console.log(`[UnifiedInbox] ⏸️ Skipping fetch - in error cooldown (${Math.floor((ERROR_COOLDOWN_MS - timeSinceLastError) / 1000)}s remaining)`);
+      return;
+    }
     
     // Mark the current request so we can detect out-of-order responses
     const requestTimestamp = Date.now();
@@ -176,25 +211,43 @@ export default function UnifiedInbox() {
     if (!emailCache.shouldFetchFresh && emailCache.cachedEmails && emailCache.cachedEmails.length > 0) {
       console.log('[UnifiedInbox] 📦 Using cached emails for provider:', selectedProviderId);
       console.log('[UnifiedInbox] Cache info:', emailCache.cacheStatus);
-      setOauthEmails(emailCache.cachedEmails);
       
-      // Show cache status in UI if enabled
-      if (showCacheInfo) {
-        const remaining = emailCache.cacheStatus.remainingMs || 0;
-        const minutes = Math.floor(remaining / 60000);
-        const seconds = Math.floor((remaining % 60000) / 1000);
-        statusBar.showInfo(`📦 Loaded from cache (expires in ${minutes}m ${seconds}s)`);
+      // Defensive check: Ensure cached emails match current provider
+      const firstEmail = emailCache.cachedEmails[0];
+      const cachedProvider = getProviderFromEmail(firstEmail);
+      const expectedProvider = selectedProviderId === 'microsoft' ? 'outlook' : selectedProviderId;
+      
+      if (cachedProvider !== expectedProvider) {
+        console.warn('[UnifiedInbox] ⚠️ Cache mismatch! Cached provider:', cachedProvider, 'Expected:', expectedProvider);
+        console.warn('[UnifiedInbox] Clearing cache and fetching fresh...');
+        emailCache.onRefreshClick();
+        // Continue to fetch fresh below
+      } else {
+        setOauthEmails(emailCache.cachedEmails);
+        
+        // Update providerEmailsCache when loading from sessionStorage cache
+        setProviderEmailsCache(prev => ({
+          ...prev,
+          [selectedProviderId]: emailCache.cachedEmails
+        }));
+        
+        // Update counts after cache is populated
+        updateProviderCounts();
+        
+        // Show cache status in UI if enabled
+        if (showCacheInfo) {
+          const remaining = emailCache.cacheStatus.remainingMs || 0;
+          const minutes = Math.floor(remaining / 60000);
+          const seconds = Math.floor((remaining % 60000) / 1000);
+          statusBar.showInfo(`📦 Loaded from cache (expires in ${minutes}m ${seconds}s)`);
+        }
+        return; // Skip API fetch since we have fresh cached data
       }
-      return; // Skip API fetch since we have fresh cached data
     }
     
-    if (selectedProviderId === "all") {
-      console.log('[UnifiedInbox] Fetching ALL emails');
-      fetchAllOAuthEmails();
-    } else {
-      console.log(`[UnifiedInbox] Fetching ${selectedProviderId} emails only`);
-      fetchOAuthEmails(selectedProviderId);
-    }
+    // Fetch emails for the selected provider
+    console.log(`[UnifiedInbox] Fetching ${selectedProviderId} emails`);
+    fetchOAuthEmails(selectedProviderId);
     
     // Cleanup function to clear loading message if component unmounts or provider changes
     return () => {
@@ -203,7 +256,10 @@ export default function UnifiedInbox() {
         currentLoadingIdRef.current = null;
       }
     };
-  }, [selectedProviderId, accountsLoaded, emailCache]);
+    // Note: emailCache is checked inside but not in dependencies to prevent infinite loops
+    // The shouldFetchFresh flag is sufficient to determine when to fetch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProviderId, accountsLoaded]);
 
   const fetchOAuthAccounts = async () => {
     try {
@@ -243,12 +299,20 @@ export default function UnifiedInbox() {
   };
 
   // Update provider email counts after fetching
-  const updateProviderCounts = (emails: OAuthEmail[]) => {
-    console.log('[updateProviderCounts] Updating counts for', emails.length, 'emails');
+  // Uses the providerEmailsCache to get accurate counts across all providers
+  const updateProviderCounts = () => {
+    // Combine all cached emails from all providers
+    const allCachedEmails = Object.values(providerEmailsCache).flat();
+    console.log('[updateProviderCounts] Updating counts from cache:', {
+      cacheKeys: Object.keys(providerEmailsCache),
+      totalEmails: allCachedEmails.length,
+      perProvider: Object.entries(providerEmailsCache).map(([key, emails]) => ({ key, count: emails.length }))
+    });
+    
     setProviders(prevProviders => 
       prevProviders.map(provider => {
         // Count emails for this provider by matching providerName
-        const providerEmails = emails.filter(email => {
+        const providerEmails = allCachedEmails.filter(email => {
           // Gmail provider matches 'Gmail (OAuth)' or similar
           if (provider.id === 'gmail') return email.providerName?.toLowerCase().includes('gmail');
           // Microsoft/Outlook provider matches 'Outlook (OAuth)' or similar
@@ -286,6 +350,7 @@ export default function UnifiedInbox() {
       timeoutHandledRef.current = false; // Reset timeout flag
     }
     setError(null);
+    setIsAuthError(false);
     
     const startTime = Date.now();
     let messageStep = 0;
@@ -364,6 +429,9 @@ export default function UnifiedInbox() {
       console.log(`  Requested batch size: ${limit}`);
       console.log(`  Has more available: ${data.hasMore}`);
       console.log(`  Providers queried: ${data.accounts}`);
+      if (data.errors) {
+        console.log(`  ⚠️ Errors: ${data.errors.length}`);
+      }
       console.log('═══════════════════════════════════════════════════════════════\n');
       
       if (data.debug?.providerMetrics) {
@@ -372,6 +440,42 @@ export default function UnifiedInbox() {
           console.log(`  - ${metric.provider}: ${metric.count} emails (${metric.duration}ms)`);
         });
         console.log();
+      }
+      
+      // Check for authentication errors even if response is "successful"
+      if (data.errors && data.errors.length > 0) {
+        const authErrors = data.errors.filter((err: string) => 
+          err.toLowerCase().includes('authentication') || 
+          err.toLowerCase().includes('unauthorized') ||
+          err.toLowerCase().includes('token') ||
+          err.toLowerCase().includes('expired')
+        );
+        
+        if (authErrors.length > 0) {
+          console.error('[UnifiedInbox] ⚠️ Authentication errors detected:', authErrors);
+          
+          // Extract email addresses from error messages
+          const failedAccounts = authErrors.map((err: string) => {
+            const match = err.match(/^(.+?):/);
+            return match ? match[1] : 'Unknown account';
+          });
+          
+          clearInterval(updateInterval);
+          setLoadingEmails(false);
+          setLoadingMore(false);
+          setShowTimeoutDialog(false);
+          statusBar.removeMessage(loadingId);
+          currentLoadingIdRef.current = null;
+          
+          const errorMsg = authErrors.length === 1 
+            ? `Authentication failed for ${failedAccounts[0]}. Your login session has expired.`
+            : `Authentication failed for ${authErrors.length} account${authErrors.length > 1 ? 's' : ''}. Your login sessions have expired.`;
+          
+          setError(errorMsg);
+          setIsAuthError(true);
+          statusBar.showError('⚠️ Authentication Required - Please re-login to your email accounts');
+          return;
+        }
       }
       
       console.log('[UnifiedInbox] Sample email from field:', data.emails?.[0]?.from);
@@ -416,8 +520,20 @@ export default function UnifiedInbox() {
         // Update hasMore flag - if we got fewer NEW emails than requested, might not have more
         setHasMore(data.hasMore === true && newEmailsCount > 0);
         
-        // Update provider email counts by provider type
-        updateProviderCounts(finalEmailList);
+        // CRITICAL: For 'all' provider, split emails by provider and cache individually
+        // This prevents double-counting when mixing 'all' and individual provider fetches
+        const gmailEmails = finalEmailList.filter(e => e.providerName?.toLowerCase().includes('gmail'));
+        const outlookEmails = finalEmailList.filter(e => e.providerName?.toLowerCase().includes('outlook'));
+        
+        setProviderEmailsCache(prev => ({
+          ...prev,
+          'gmail': gmailEmails,
+          'microsoft': outlookEmails
+          // Note: We DO NOT store under 'all' key to prevent double-counting
+        }));
+        
+        // Update provider email counts using the cache
+        updateProviderCounts();
         
         setShowTimeoutDialog(false);
         statusBar.removeMessage(loadingId);
@@ -445,16 +561,34 @@ export default function UnifiedInbox() {
       // Clear interval on error
       clearInterval(updateInterval);
       
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch emails';
+      // Record error time to prevent infinite retries
+      lastErrorTimeRef.current = Date.now();
+      
+      let errorMessage = 'Failed to fetch emails';
+      let isConnectionError = false;
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        isConnectionError = true;
+        errorMessage = 'Cannot connect to server. Please check if the server is running.';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       console.error('[UnifiedInbox] Failed to fetch all OAuth emails:', errorMessage);
       setError(errorMessage);
+      setIsAuthError(false); // General error, not authentication related
       if (!isLoadMore) {
         setOauthEmails([]);
       }
       setShowTimeoutDialog(false);
       statusBar.removeMessage(loadingId);
       currentLoadingIdRef.current = null; // Clear the ref
-      statusBar.showError(errorMessage);
+      
+      if (isConnectionError) {
+        statusBar.showError('⚠️ Server not available - check if dev server is running');
+      } else {
+        statusBar.showError(errorMessage);
+      }
     } finally {
       setLoadingEmails(false);
       setLoadingMore(false);
@@ -484,6 +618,7 @@ export default function UnifiedInbox() {
       timeoutHandledRef.current = false; // Reset timeout flag
     }
     setError(null);
+    setIsAuthError(false);
     const providerName = provider === 'gmail' ? 'Gmail' : 'Outlook';
     
     const currentOffset = emailOffsets[provider] || 0;
@@ -633,8 +768,14 @@ export default function UnifiedInbox() {
         // Update hasMore flag - if we got fewer emails than requested, might not have more
         setHasMore(data.hasMore === true && convertedEmails.length > 0);
         
-        // Update provider email counts for this specific provider
-        updateProviderCounts(finalEmailList);
+        // Update cache for this specific provider to preserve counts  
+        setProviderEmailsCache(prev => ({
+          ...prev,
+          [provider]: finalEmailList
+        }));
+        
+        // Update provider email counts using the cache
+        updateProviderCounts();
         
         setShowTimeoutDialog(false);
         if (loadingId) {
@@ -665,9 +806,22 @@ export default function UnifiedInbox() {
     } catch (error) {
       if (updateInterval) clearInterval(updateInterval); // Clear interval on error
       
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch emails';
+      // Record error time to prevent infinite retries
+      lastErrorTimeRef.current = Date.now();
+      
+      let errorMessage = 'Failed to fetch emails';
+      let isConnectionError = false;
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        isConnectionError = true;
+        errorMessage = 'Cannot connect to server. Please check if the server is running.';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       console.error('[UnifiedInbox] Failed to fetch OAuth emails:', errorMessage);
       setError(errorMessage);
+      setIsAuthError(false); // General error, not authentication related
       if (!isLoadMore) {
         setOauthEmails([]);
       }
@@ -676,7 +830,12 @@ export default function UnifiedInbox() {
         statusBar.removeMessage(loadingId);
         currentLoadingIdRef.current = null; // Clear the ref
       }
-      statusBar.showError(errorMessage);
+      
+      if (isConnectionError) {
+        statusBar.showError('⚠️ Server not available - check if dev server is running');
+      } else {
+        statusBar.showError(errorMessage);
+      }
     } finally {
       setLoadingEmails(false);
       setLoadingMore(false);
@@ -687,11 +846,9 @@ export default function UnifiedInbox() {
     }
   };
 
-  // Load more emails (wrapper for clarity)
+  // Load more emails for the currently selected provider
   const loadMoreEmails = () => {
-    if (selectedProviderId === "all") {
-      fetchAllOAuthEmails(true);
-    } else {
+    if (selectedProviderId !== "dashboard") {
       fetchOAuthEmails(selectedProviderId, true);
     }
   };
@@ -733,23 +890,8 @@ export default function UnifiedInbox() {
     providerNames: emails.map(e => e.providerName),
   });
 
-  // Filter emails based on selected provider
-  const filteredEmails = selectedProviderId === "all" 
-    ? emails 
-    : emails.filter(email => {
-        // Match provider ID to email providerName
-        if (selectedProviderId === 'gmail') {
-          const match = email.providerName?.toLowerCase().includes('gmail');
-          console.log(`[UnifiedInbox] Gmail filter check - email: ${email.subject}, provider: ${email.providerName}, match: ${match}`);
-          return match;
-        }
-        if (selectedProviderId === 'microsoft') {
-          const match = email.providerName?.toLowerCase().includes('outlook');
-          console.log(`[UnifiedInbox] Outlook filter check - email: ${email.subject}, provider: ${email.providerName}, match: ${match}`);
-          return match;
-        }
-        return false;
-      });
+  // Filter emails based on selected provider (no filtering needed, emails already filtered)
+  const filteredEmails = emails;
 
   // Log filtering for debugging
   console.log(`[UnifiedInbox] After filter - selectedProvider: ${selectedProviderId}, rawCount: ${emails.length}, filteredCount: ${filteredEmails.length}`);
@@ -779,10 +921,8 @@ export default function UnifiedInbox() {
   
   // Get selected provider details for display
   const selectedProvider = providers.find(p => p.id === selectedProviderId);
-  const selectedProviderName = selectedProviderId === "all" 
-    ? "All Emails"
-    : selectedProvider?.name || "Unified Inbox";
-  const selectedProviderEmail = selectedProvider?.email;
+  const selectedProviderName = selectedProvider?.name || "Unified Inbox";
+  const selectedProviderEmail = selectedProviderId === "dashboard" ? undefined : selectedProvider?.email;
 
   return (
     <div className="flex h-screen bg-background">
@@ -859,9 +999,9 @@ export default function UnifiedInbox() {
               asChild
               variant="outline"
               size="sm"
-              title="Back to dashboard"
+              title="Back to home"
             >
-              <Link to="/dashboard">
+              <Link to="/">
                 <LayoutGrid className="w-4 h-4" />
               </Link>
             </Button>
@@ -883,18 +1023,61 @@ export default function UnifiedInbox() {
         {/* Email List & Detail Split Pane */}
         <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
           {error && (
-            <ErrorAlert
-              message={error}
-              details="Failed to load emails from your connected accounts. Check your connection and try again."
-              onDismiss={() => setError(null)}
-              onRetry={() => {
-                if (selectedProviderId === "all") {
-                  fetchAllOAuthEmails(false);
-                } else {
-                  fetchOAuthEmails(selectedProviderId);
-                }
-              }}
-            />
+            <div className="mx-4 my-4">
+              {isAuthError ? (
+                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4" role="alert">
+                  <div className="flex items-start gap-3 mb-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-amber-900 dark:text-amber-200">Authentication Required</h3>
+                      <p className="text-sm text-amber-800 dark:text-amber-300 mt-1">{error}</p>
+                      <p className="text-sm text-amber-700 dark:text-amber-400 mt-2">
+                        Your email provider requires you to log in again. This happens when:
+                      </p>
+                      <ul className="text-sm text-amber-700 dark:text-amber-400 mt-1 ml-4 list-disc space-y-1">
+                        <li>Your login session has expired (usually after 7-60 days)</li>
+                        <li>You changed your password</li>
+                        <li>Your account security settings were updated</li>
+                      </ul>
+                    </div>
+                    <button
+                      onClick={() => { setError(null); setIsAuthError(false); }}
+                      className="text-amber-600 dark:text-amber-500 hover:text-amber-800 dark:hover:text-amber-300 flex-shrink-0"
+                      aria-label="Dismiss error"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button asChild size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
+                      <Link to="/settings">
+                        <Settings className="w-4 h-4 mr-2" />
+                        Go to Settings to Re-authenticate
+                      </Link>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setError(null); setIsAuthError(false); }}
+                      className="border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <ErrorAlert
+                  message={error}
+                  details="Failed to load emails from your connected accounts. Check your connection and try again."
+                  onDismiss={() => { setError(null); setIsAuthError(false); }}
+                  onRetry={() => {
+                    if (selectedProviderId !== "dashboard") {
+                      fetchOAuthEmails(selectedProviderId);
+                    }
+                  }}
+                />
+              )}
+            </div>
           )}
           {providers.length === 0 ? (
             <div className="flex items-center justify-center h-full flex-col w-full">
@@ -903,6 +1086,63 @@ export default function UnifiedInbox() {
                 <Button asChild>
                   <Link to="/settings">Connect an email account</Link>
                 </Button>
+              </div>
+            </div>
+          ) : selectedProviderId === "dashboard" ? (
+            <div className="flex items-center justify-center h-full w-full p-8">
+              <div className="max-w-4xl w-full space-y-6">
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-bold mb-2">Welcome to Your Unified Inbox</h2>
+                  <p className="text-muted-foreground">Select an email account from the sidebar to view messages</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {providers.map(provider => (
+                    <button
+                      key={provider.id}
+                      onClick={() => setSelectedProviderId(provider.id)}
+                      className="p-6 border-2 border-border rounded-lg hover:border-primary hover:bg-accent transition-all text-left"
+                    >
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className="text-4xl">{provider.icon}</div>
+                        <div className="flex-1">
+                          <h3 className="text-xl font-semibold">{provider.name}</h3>
+                          {provider.email && (
+                            <p className="text-sm text-muted-foreground">{provider.email}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {provider.emails?.length || 0} emails loaded
+                        </span>
+                        <span className="text-primary font-medium">View Inbox →</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="mt-8 p-6 bg-muted/50 rounded-lg">
+                  <h3 className="font-semibold mb-2">Quick Stats</h3>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-primary">
+                        {providers.length}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Connected</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-primary">
+                        {Object.values(providerEmailsCache).flat().length}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Total Emails</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-primary">60 min</div>
+                      <div className="text-sm text-muted-foreground">Cache TTL</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           ) : loadingEmails && sortedEmails.length === 0 ? (
@@ -925,7 +1165,7 @@ export default function UnifiedInbox() {
                 <div className="lg:hidden absolute inset-0 bg-white z-10">
                   {(() => {
                     const selectedEmail = sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined;
-                    const provider = selectedProviderId === "all" ? getProviderFromEmail(selectedEmail) : (selectedProviderId === "gmail" ? "gmail" : "outlook");
+                    const provider = getProviderFromEmail(selectedEmail);
                     
                     // Find the OAuth account for this provider
                     const accountProvider = provider === 'gmail' ? 'google' : 'microsoft';
@@ -951,7 +1191,19 @@ export default function UnifiedInbox() {
                   <EmailList
                     emails={displayedEmails}
                     selectedEmailId={selectedEmailId}
-                    onEmailSelect={(email) => setSelectedEmailId(email.id)}
+                    onEmailSelect={(email) => {
+                      // Validate email belongs to current provider before selecting
+                      const emailProvider = getProviderFromEmail(email);
+                      const currentProvider = selectedProviderId === 'microsoft' ? 'outlook' : selectedProviderId;
+                      
+                      if (emailProvider !== currentProvider && selectedProviderId !== 'dashboard') {
+                        console.warn('[UnifiedInbox] Prevented cross-provider email selection');
+                        console.warn('[UnifiedInbox] Email provider:', emailProvider, 'Current provider:', currentProvider);
+                        return;
+                      }
+                      
+                      setSelectedEmailId(email.id);
+                    }}
                   />
                 </div>
 

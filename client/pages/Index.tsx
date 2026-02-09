@@ -23,7 +23,7 @@ export default function Index() {
               </Link>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link to="/dashboard">Dashboard</Link>
+              <Link to="/inbox">Inbox</Link>
             </Button>
           </div>
         </div>
@@ -42,7 +42,7 @@ export default function Index() {
           </p>
           <div className="flex items-center justify-center gap-4">
             <Button asChild size="lg">
-              <Link to="/dashboard">View Dashboard</Link>
+              <Link to="/inbox">View Inbox</Link>
             </Button>
           </div>
         </div>
@@ -81,7 +81,7 @@ export default function Index() {
             required - view sample data right away.
           </p>
           <Button asChild size="lg" variant="secondary">
-            <Link to="/dashboard">Launch Dashboard</Link>
+            <Link to="/inbox">Launch Inbox</Link>
           </Button>
         </div>
       </section>

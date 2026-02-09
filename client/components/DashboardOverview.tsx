@@ -52,10 +52,16 @@ export function DashboardOverview({
 
       // Fetch configured accounts (both IMAP and OAuth) - FAST
       const accountsResponse = await fetch("/api/email/configured");
+      if (!accountsResponse.ok) {
+        throw new Error(`Server returned ${accountsResponse.status}`);
+      }
       const accountsData = await accountsResponse.json();
 
       // Fetch OAuth accounts - FAST
       const oauthResponse = await fetch("/api/email/auth/status");
+      if (!oauthResponse.ok) {
+        throw new Error(`Server returned ${oauthResponse.status}`);
+      }
       const oauthData = await oauthResponse.json();
       
       // Combine all accounts
@@ -117,7 +123,15 @@ export function DashboardOverview({
       fetchEmailCounts(Array.from(providerMap.values()));
     } catch (err) {
       console.error("Error fetching providers:", err);
-      setError("Failed to load providers");
+      
+      let errorMessage = "Failed to load providers";
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        errorMessage = "Cannot connect to server. Please start the development server (pnpm dev)";
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
       setLoading(false);
       setLoadingCounts(false);
     }
@@ -127,6 +141,11 @@ export function DashboardOverview({
     try {
       // Fetch all emails to count - this is the slow part
       const emailsResponse = await fetch("/api/email/oauth/all?limit=20");
+      if (!emailsResponse.ok) {
+        console.warn(`Email counts fetch returned ${emailsResponse.status}, keeping counts at 0`);
+        setLoadingCounts(false);
+        return;
+      }
       const emailsData = await emailsResponse.json();
 
       // Group emails by provider

@@ -7,7 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
-import Dashboard from "./pages/Dashboard";
 import UnifiedInbox from "./pages/UnifiedInbox";
 import Settings from "./pages/Settings";
 import Troubleshooting from "./pages/Troubleshooting";
@@ -36,8 +35,7 @@ const App = () => (
               >
                 <Routes>
                   <Route path="/" element={<Index />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/unified-inbox" element={<UnifiedInbox />} />
+                  <Route path="/inbox" element={<UnifiedInbox />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/troubleshooting" element={<Troubleshooting />} />
                   <Route path="/oauth-integration" element={<OAuthIntegration />} />

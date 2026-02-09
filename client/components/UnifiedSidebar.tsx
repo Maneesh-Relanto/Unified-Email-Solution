@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Mail, Inbox } from "lucide-react";
+import { Mail, LayoutDashboard } from "lucide-react";
 
 interface SidebarProvider {
   id: string;
@@ -38,27 +38,31 @@ export function UnifiedSidebar({
 
       {/* Provider List */}
       <nav className="flex-1 overflow-y-auto p-2">
-        {/* All Providers Option */}
+        {/* Dashboard Option */}
         <button
-          onClick={() => onProviderSelect("all")}
+          onClick={() => onProviderSelect("dashboard")}
           className={cn(
             "w-full px-3 py-2 rounded-lg mb-1 text-left transition-all flex items-center gap-3",
-            selectedProviderId === "all"
+            selectedProviderId === "dashboard"
               ? "bg-primary text-primary-foreground shadow-md"
               : "text-foreground hover:bg-slate-200",
           )}
         >
-          <Inbox className="w-5 h-5 flex-shrink-0" />
+          <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm truncate">All Providers</p>
+            <p className="font-medium text-sm truncate">Dashboard</p>
             <p className="text-xs opacity-70">
-              {providers.reduce((sum, p) => sum + (p.emails?.length || 0), 0)} emails
+              {providers.length} account{providers.length !== 1 ? 's' : ''} connected
             </p>
           </div>
         </button>
 
         {/* Divider */}
         <div className="my-2 border-t border-border"></div>
+
+        <p className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Email Accounts
+        </p>
 
         {/* Individual Providers */}
         {providers.map((provider) => {

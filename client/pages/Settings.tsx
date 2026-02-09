@@ -10,11 +10,14 @@ import { TTLConfigurationDialog } from "@/components/TTLConfigurationDialog";
 import { EmailLoadingSettingsDialog } from "@/components/EmailLoadingSettingsDialog";
 import { useTTLConfig } from "@/hooks/use-ttl-config";
 import { useEmailLoadingConfig } from "@/hooks/use-email-loading-config";
+import { getCacheStats } from "@/hooks/use-email-cache";
 
 interface ConfiguredAccount {
   email: string;
   provider: string;
   configured: boolean;
+  tokenExpiresAt?: number; // Unix timestamp (OAuth only)
+  lastRefreshedAt?: string; // ISO timestamp (OAuth only)
 }
 
 interface ProgressStep {
@@ -188,6 +191,100 @@ export default function SettingsPage() {
   const { ttlConfig } = useTTLConfig();
   const { config: emailLoadingConfig } = useEmailLoadingConfig();
 
+  // Get cache statistics
+  const getCacheStatistics = () => {
+    const stats = getCacheStats();
+    const sizeInKB = (stats.totalSize / 1024).toFixed(2);
+    
+    // Count emails per provider
+    const emailCounts: Record<string, number> = {};
+    stats.entries.forEach(entry => {
+      if (!emailCounts[entry.provider]) {
+        emailCounts[entry.provider] = 0;
+      }
+      // Estimate: each entry in cache represents multiple emails
+      // We'll get the actual count from sessionStorage
+      const cacheKey = `emailify_cache_${entry.provider}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsedEntry = JSON.parse(cached);
+          if (parsedEntry.data && Array.isArray(parsedEntry.data)) {
+            emailCounts[entry.provider] = parsedEntry.data.length;
+          }
+        } catch (e) {
+          console.error('Error parsing cache for count:', e);
+        }
+      }
+    });
+
+    const totalEmails = Object.values(emailCounts).reduce((acc, count) => acc + count, 0);
+    
+    return {
+      sizeInKB,
+      totalSize: stats.totalSize,
+      totalEmails,
+      emailCounts,
+      providers: stats.providers,
+      entries: stats.entries
+    };
+  };
+
+  const [cacheStats, setCacheStats] = useState(getCacheStatistics());
+
+  // Update cache stats when activeTab changes to "cache"
+  useEffect(() => {
+    if (activeTab === "cache") {
+      setCacheStats(getCacheStatistics());
+    }
+  }, [activeTab]);
+
+  // Time formatting utilities for token lifecycle
+  const formatTimeRemaining = (expiresAt: number): string => {
+    const now = Date.now();
+    const remainingMs = expiresAt - now;
+    
+    if (remainingMs <= 0) {
+      return 'Expired';
+    }
+    
+    const minutes = Math.floor(remainingMs / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) {
+      return `${days}d ${hours % 24}h`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    } else {
+      return `${minutes}m`;
+    }
+  };
+
+  const formatRelativeTime = (isoTimestamp: string): string => {
+    try {
+      const date = new Date(isoTimestamp);
+      const now = Date.now();
+      const diffMs = now - date.getTime();
+      
+      const minutes = Math.floor(diffMs / 60000);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+      
+      if (days > 0) {
+        return `${days} day${days > 1 ? 's' : ''} ago`;
+      } else if (hours > 0) {
+        return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+      } else if (minutes > 0) {
+        return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+      } else {
+        return 'Just now';
+      }
+    } catch (e) {
+      return 'Unknown';
+    }
+  };
+
   // Fetch configured accounts on load (both IMAP and OAuth)
   const fetchAccounts = async () => {
     try {
@@ -215,6 +312,8 @@ export default function SettingsPage() {
           email: provider.email,
           provider: provider.provider, // 'google' or 'microsoft'
           configured: true,
+          tokenExpiresAt: provider.expiresAt,
+          lastRefreshedAt: provider.updatedAt,
         }));
         allAccounts.push(...oauthAccounts);
       }
@@ -396,7 +495,7 @@ export default function SettingsPage() {
       <header className="border-b border-border sticky top-0 bg-card">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/dashboard">
+            <Link to="/inbox">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="w-4 h-4" />
               </Button>
@@ -410,10 +509,10 @@ export default function SettingsPage() {
           </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="default" size="sm">
-              <Link to="/">Dashboard</Link>
+              <Link to="/">Home</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link to="/unified-inbox">Unified Inbox</Link>
+              <Link to="/inbox">Unified Inbox</Link>
             </Button>
             <SecurityButton />
             <ThemeDropdown />
@@ -499,7 +598,7 @@ export default function SettingsPage() {
           </aside>
 
           {/* Main Content */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 overflow-y-auto max-h-[calc(100vh-120px)] pr-2">
             {/* Messages */}
             {message && (
               <>
@@ -625,6 +724,21 @@ export default function SettingsPage() {
                                     {(account.provider === 'google' || account.provider === 'microsoft') ? 'OAuth' : 'IMAP'}
                                   </span>
                                 </div>
+                                
+                                {/* Token Lifecycle Info (OAuth only) */}
+                                {(account.provider === 'google' || account.provider === 'microsoft') && account.tokenExpiresAt && (
+                                  <div className="mt-2 space-y-1">
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <Clock className="w-3 h-3" />
+                                      <span>Token expires in: {formatTimeRemaining(account.tokenExpiresAt)}</span>
+                                    </div>
+                                    {account.lastRefreshedAt && (
+                                      <div className="text-xs text-muted-foreground pl-5">
+                                        Last refreshed: {formatRelativeTime(account.lastRefreshedAt)}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <Button
@@ -836,6 +950,89 @@ export default function SettingsPage() {
                         Configure Email Loading
                       </Button>
                     </div>
+                  </div>
+
+                  {/* Cache Statistics Card */}
+                  <div className="bg-card border border-border rounded-lg p-6">
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <Inbox className="w-5 h-5 text-primary" />
+                      Cache Statistics
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Current cache usage and email counts. Statistics are updated when you visit this tab.
+                    </p>
+
+                    {/* Statistics Grid */}
+                    <div className="bg-muted/50 rounded p-4 mb-4">
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div className="text-center">
+                          <div className="text-3xl font-bold text-primary mb-1">
+                            {cacheStats.sizeInKB} KB
+                          </div>
+                          <div className="text-xs text-muted-foreground">Total Cache Size</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            ({cacheStats.totalSize.toLocaleString()} bytes)
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-3xl font-bold text-primary mb-1">
+                            {cacheStats.totalEmails}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Cached Emails</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Across {cacheStats.providers.length} provider{cacheStats.providers.length !== 1 ? 's' : ''}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Per-Provider Breakdown */}
+                    {cacheStats.providers.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">PER-PROVIDER BREAKDOWN</p>
+                        {cacheStats.entries.map((entry, idx) => {
+                          const emailCount = cacheStats.emailCounts[entry.provider] || 0;
+                          const providerName = entry.provider === 'microsoft' ? 'Outlook' : 
+                                             entry.provider.charAt(0).toUpperCase() + entry.provider.slice(1);
+                          const validMinutes = Math.floor(entry.validMs / 60000);
+                          const validSeconds = Math.floor((entry.validMs % 60000) / 1000);
+                          
+                          return (
+                            <div key={idx} className="flex justify-between items-center text-sm border-b border-border pb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{providerName}:</span>
+                                <span className="text-muted-foreground">{emailCount} email{emailCount !== 1 ? 's' : ''}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {validMinutes > 0 ? `${validMinutes}m ${validSeconds}s remaining` : 
+                                 validSeconds > 0 ? `${validSeconds}s remaining` : 'Expired'}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {cacheStats.providers.length === 0 && (
+                      <div className="text-center py-4 text-muted-foreground text-sm">
+                        No cached data found. Load emails from a provider to populate cache.
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={() => {
+                        // Clear all cache
+                        cacheStats.providers.forEach(provider => {
+                          sessionStorage.removeItem(`emailify_cache_${provider}`);
+                        });
+                        setCacheStats(getCacheStatistics());
+                      }}
+                      variant="outline"
+                      className="w-full mt-4"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Clear All Cache
+                    </Button>
                   </div>
 
                   {/* Features Card */}
