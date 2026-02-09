@@ -13,9 +13,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LayoutGrid, Settings, Loader, Type } from "lucide-react";
+import { LayoutGrid, Settings, Loader, Type, RotateCcw } from "lucide-react";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import type { Email } from "@/lib/mock-emails";
+import { useEmailCache } from "@/hooks/use-email-cache-hook";
 
 /**
  * Normalize email.from field to consistent { name, email } format
@@ -119,11 +120,15 @@ export default function UnifiedInbox() {
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [emailOffsets, setEmailOffsets] = useState<Record<string, number>>({}); // Track offset per provider
   const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium'); // Font size preference
+  const [showCacheInfo, setShowCacheInfo] = useState(true); // Show cache status in UI
   const INITIAL_LOAD = 20;
   const LOAD_MORE_BATCH = 20;
   
   // Status bar hook
   const statusBar = useStatusBar();
+  
+  // TIER 1: Email Cache Hook - checks sessionStorage for cached emails
+  const emailCache = useEmailCache(selectedProviderId);
   
   // Track current fetch request to avoid race conditions when switching providers
   const currentRequestRef = useRef<{ providerId: string; timestamp: number } | null>(null);
@@ -158,6 +163,22 @@ export default function UnifiedInbox() {
     console.log('[UnifiedInbox] Resetting email offsets');
     setEmailOffsets({});
     
+    // TIER 1: Check cache first before making API call
+    if (!emailCache.shouldFetchFresh && emailCache.cachedEmails && emailCache.cachedEmails.length > 0) {
+      console.log('[UnifiedInbox] 📦 Using cached emails for provider:', selectedProviderId);
+      console.log('[UnifiedInbox] Cache info:', emailCache.cacheStatus);
+      setOauthEmails(emailCache.cachedEmails);
+      
+      // Show cache status in UI if enabled
+      if (showCacheInfo) {
+        const remaining = emailCache.cacheStatus.remainingMs || 0;
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        statusBar.showInfo(`📦 Loaded from cache (expires in ${minutes}m ${seconds}s)`);
+      }
+      return; // Skip API fetch since we have fresh cached data
+    }
+    
     if (selectedProviderId === "all") {
       console.log('[UnifiedInbox] Fetching ALL emails');
       fetchAllOAuthEmails();
@@ -173,7 +194,7 @@ export default function UnifiedInbox() {
         currentLoadingIdRef.current = null;
       }
     };
-  }, [selectedProviderId, accountsLoaded]);
+  }, [selectedProviderId, accountsLoaded, emailCache]);
 
   const fetchOAuthAccounts = async () => {
     try {
@@ -343,6 +364,8 @@ export default function UnifiedInbox() {
         } else {
           finalEmailList = convertedEmails;
           setOauthEmails(convertedEmails);
+          // TIER 1: Update cache with freshly fetched emails (only on initial load, not on load-more)
+          emailCache.onEmailsFetched(convertedEmails);
         }
         
         // Update hasMore flag - if we got fewer NEW emails than requested, might not have more
@@ -527,6 +550,8 @@ export default function UnifiedInbox() {
         } else {
           finalEmailList = convertedEmails;
           setOauthEmails(convertedEmails);
+          // TIER 1: Update cache with freshly fetched emails (only on initial load, not on load-more)
+          emailCache.onEmailsFetched(convertedEmails);
           
           // Set initial offset for this provider
           if (convertedEmails.length > 0) {
@@ -718,6 +743,15 @@ export default function UnifiedInbox() {
             {(loadingEmails || loadingMore) && (
               <Loader className="w-4 h-4 animate-spin text-primary" />
             )}
+            {/* TIER 1: Refresh button to clear cache and fetch fresh emails */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={emailCache.onRefreshClick}
+              title="Clear cache and fetch fresh emails"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </Button>
             {/* Font Size Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
