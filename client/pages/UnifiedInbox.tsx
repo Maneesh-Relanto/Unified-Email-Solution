@@ -256,10 +256,14 @@ export default function UnifiedInbox() {
       console.log('[UnifiedInbox] 📦 Using cached emails for provider:', selectedProviderId);
       console.log('[UnifiedInbox] Cache info:', emailCache.cacheStatus);
       
-      // Defensive check: Ensure cached emails match current provider
+      // Defensive check: Ensure cached emails match current provider type
+      // Since cache key includes the email (gmail_user@example.com), the cache is already account-specific
       const firstEmail = emailCache.cachedEmails[0];
       const cachedProvider = getProviderFromEmail(firstEmail);
-      const expectedProvider = selectedProviderId === 'microsoft' ? 'outlook' : selectedProviderId;
+      
+      // Extract provider type from composite ID (format: "gmail_user@example.com")
+      const providerType = selectedProviderId.split('_')[0]; // 'gmail' or 'microsoft'  
+      const expectedProvider = providerType === 'microsoft' ? 'outlook' : providerType;
       
       if (cachedProvider !== expectedProvider) {
         console.warn('[UnifiedInbox] ⚠️ Cache mismatch! Cached provider:', cachedProvider, 'Expected:', expectedProvider);
@@ -328,9 +332,10 @@ export default function UnifiedInbox() {
       if (data.success && data.data?.providers) {
         setOauthAccounts(data.data.providers);
         
-        // Build providers list from OAuth accounts only
+        // Build providers list from OAuth accounts - one entry per account
+        // Use email address in the ID to support multiple accounts from same provider
         const oauthProviders = data.data.providers.map((account: OAuthAccount) => ({
-          id: account.provider === 'google' ? 'gmail' : 'microsoft',
+          id: `${account.provider === 'google' ? 'gmail' : 'microsoft'}_${account.email}`,
           name: account.provider === 'google' ? 'Gmail' : 'Outlook',
           icon: account.provider === 'google' ? '📧' : '📬',
           hasOAuth: true,
@@ -338,12 +343,8 @@ export default function UnifiedInbox() {
           emails: [], // Will be populated when emails are fetched
         }));
         
-        // Remove duplicates (in case multiple accounts from same provider)
-        const uniqueProviders = Array.from(
-          new Map(oauthProviders.map((p: Provider) => [p.id, p])).values()
-        ) as Provider[];
-        
-        setProviders(uniqueProviders);
+        // No need to remove duplicates - each email address creates a unique provider entry
+        setProviders(oauthProviders);
         setAccountsLoaded(true); // Mark accounts as loaded
       } else {
         setProviders([]);
@@ -373,16 +374,19 @@ export default function UnifiedInbox() {
     
     setProviders(prevProviders => 
       prevProviders.map(provider => {
+        // Extract provider type from composite ID (format: "gmail_user@example.com")
+        const providerType = provider.id.split('_')[0]; // Get 'gmail' or 'microsoft'
+        
         // Count emails for this provider by matching providerName
         const providerEmails = allCachedEmails.filter(email => {
           // Gmail provider matches 'Gmail (OAuth)' or similar
-          if (provider.id === 'gmail') return email.providerName?.toLowerCase().includes('gmail');
+          if (providerType === 'gmail') return email.providerName?.toLowerCase().includes('gmail');
           // Microsoft/Outlook provider matches 'Outlook (OAuth)' or similar
-          if (provider.id === 'microsoft') return email.providerName?.toLowerCase().includes('outlook');
+          if (providerType === 'microsoft') return email.providerName?.toLowerCase().includes('outlook');
           return false;
         });
         
-        console.log(`[updateProviderCounts] Provider ${provider.id}: ${providerEmails.length} emails`);
+        console.log(`[updateProviderCounts] Provider ${provider.id} (type: ${providerType}): ${providerEmails.length} emails`);
         
         // Cast the emails to Email[] since we're converting OAuthEmail to Email
         return {
@@ -724,14 +728,20 @@ export default function UnifiedInbox() {
     }
     setError(null);
     setIsAuthError(false);
-    const providerName = provider === 'gmail' ? 'Gmail' : 'Outlook';
+    
+    // Extract email address from provider ID (format: "gmail_user@gmail.com" or "microsoft_user@outlook.com")
+    const parts = provider.split('_');
+    const providerType = parts[0]; // 'gmail' or 'microsoft'
+    const emailAddress = parts.slice(1).join('_'); // Rest is email (handles _ in email)
+    
+    const providerName = providerType === 'gmail' ? 'Gmail' : 'Outlook';
     
     const currentOffset = emailOffsets[provider] || 0;
     const skip = isLoadMore ? currentOffset : 0;
     const limit = isLoadMore ? emailLoadingConfig.batchSize : emailLoadingConfig.batchSize;
     
     // Show initial message immediately
-    const loadingId = isLoadMore ? undefined : statusBar.showLoading(`🔌 Connecting to ${providerName}... (0s)`);
+    const loadingId = isLoadMore ? undefined : statusBar.showLoading(`🔌 Connecting to ${providerName} (${emailAddress})... (0s)`);
     if (loadingId) {
       currentLoadingIdRef.current = loadingId; // Track the loading message ID
     }
@@ -741,10 +751,10 @@ export default function UnifiedInbox() {
     
     // Update message every 1 second (only for initial load)
     const messages = [
-      `🔌 Connecting to ${providerName}`,
-      `🔑 Authenticating ${providerName}`,
-      `📬 Reading ${providerName} emails`,
-      `📊 Loading email data`,
+      `🔌 Connecting to ${providerName} (${emailAddress})`,
+      `🔑 Authenticating ${providerName} (${emailAddress})`,
+      `📬 Reading ${providerName} emails (${emailAddress})`,
+      `📊 Loading email data (${emailAddress})`,
     ];
     
     const updateInterval = !isLoadMore ? setInterval(() => {
@@ -768,14 +778,15 @@ export default function UnifiedInbox() {
       
       if (updateInterval) clearInterval(updateInterval); // Clear if completes quickly
       
-      // Find the email address for this provider
+      // Find the specific account by email address
       const account = oauthAccounts.find(acc => 
-        (provider === 'gmail' && acc.provider === 'google') ||
-        (provider === 'microsoft' && acc.provider === 'microsoft')
+        acc.email === emailAddress &&
+        ((providerType === 'gmail' && acc.provider === 'google') ||
+         (providerType === 'microsoft' && acc.provider === 'microsoft'))
       );
 
       if (!account) {
-        console.warn('[UnifiedInbox] No account found for provider:', provider);
+        console.warn('[UnifiedInbox] No account found for provider:', provider, 'email:', emailAddress);
         if (!isLoadMore) {
           setOauthEmails([]);
         }
@@ -784,12 +795,12 @@ export default function UnifiedInbox() {
           statusBar.removeMessage(loadingId);
           currentLoadingIdRef.current = null;
         }
-        statusBar.showError(`No ${providerName} account connected`);
+        statusBar.showError(`No ${providerName} account found for ${emailAddress}`);
         return;
       }
 
       console.log('\n═══════════════════════════════════════════════════════════════');
-      console.log(`[🔄 UnifiedInbox] 📧 FETCHING ${provider.toUpperCase()} EMAILS`);
+      console.log(`[🔄 UnifiedInbox] 📧 FETCHING ${providerType.toUpperCase()} EMAILS`);
       console.log(`  Email: ${account.email}`);
       console.log(`  Batch Size (limit): ${limit}`);
       console.log(`  Pagination (skip): ${skip}`);
@@ -1308,7 +1319,10 @@ export default function UnifiedInbox() {
                     onEmailSelect={(email) => {
                       // Validate email belongs to current provider before selecting
                       const emailProvider = getProviderFromEmail(email);
-                      const currentProvider = selectedProviderId === 'microsoft' ? 'outlook' : selectedProviderId;
+                      
+                      // Extract provider type from composite ID (format: "gmail_user@example.com")
+                      const providerType = selectedProviderId.split('_')[0];
+                      const currentProvider = providerType === 'microsoft' ? 'outlook' : providerType;
                       
                       if (emailProvider !== currentProvider && selectedProviderId !== 'dashboard') {
                         console.warn('[UnifiedInbox] Prevented cross-provider email selection');
@@ -1352,7 +1366,10 @@ export default function UnifiedInbox() {
               <div className="hidden lg:flex flex-col flex-1 overflow-hidden bg-gray-50">
                 {(() => {
                   const selectedEmail = sortedEmails.find((e) => e.id === selectedEmailId) as Email | undefined;
-                  const provider = selectedProviderId === "all" ? getProviderFromEmail(selectedEmail) : (selectedProviderId === "gmail" ? "gmail" : "outlook");
+                  
+                  // Extract provider type from composite ID (format: "gmail_user@example.com")
+                  const providerType = selectedProviderId.split('_')[0];
+                  const provider = selectedProviderId === "all" ? getProviderFromEmail(selectedEmail) : (providerType === "gmail" ? "gmail" : "outlook");
                   
                   // Find the OAuth account for this provider
                   const accountProvider = provider === 'gmail' ? 'google' : 'microsoft';
