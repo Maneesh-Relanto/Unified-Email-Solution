@@ -1096,16 +1096,27 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <div className="bg-card border border-border rounded-lg p-6">
-                    <h3 className="font-semibold mb-2">❓ Troubleshooting</h3>
+                    <h3 className="font-semibold mb-2">💡 Privacy Screen Mode</h3>
                     <p className="text-sm text-muted-foreground mb-3">
-                      Having issues? Try the following:
+                      Use the lightbulb button (💡) in the top right corner to quickly hide your emails when someone walks by. Click the button or anywhere on the screen to disable.
                     </p>
                     <ul className="text-sm text-muted-foreground space-y-2 ml-4">
-                      <li>• Check that your email address is correct</li>
-                      <li>• Ensure you're using an app password (if required)</li>
-                      <li>• Verify IMAP is enabled in your email account settings</li>
-                      <li>• Try removing and re-adding the account</li>
+                      <li>• Perfect for open office environments</li>
+                      <li>• Instantly blurs and hides all email content</li>
+                      <li>• One-click activation and deactivation</li>
+                      <li>• No data is sent or logged during privacy mode</li>
                     </ul>
+                  </div>
+                  <div className="bg-card border border-border rounded-lg p-6">
+                    <h3 className="font-semibold mb-2">❓ Troubleshooting & FAQs</h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Having issues? We have a comprehensive troubleshooting guide with solutions to common problems.
+                    </p>
+                    <Link to="/troubleshooting">
+                      <Button className="w-full">
+                        View Complete Troubleshooting Guide & FAQs
+                      </Button>
+                    </Link>
                   </div>
                 </div>
               </div>
