@@ -163,30 +163,29 @@ export default function UnifiedInbox() {
   useEffect(() => {
     console.log('[UnifiedInbox] Restoring counts from cache on mount');
     
-    // Import cache utils and restore cached emails for all providers
+    // Wait for providers to be loaded before restoring cache
+    if (!accountsLoaded || providers.length === 0) return;
+    
+    // Import cache utils and restore cached emails for all provider accounts
     import('../hooks/use-email-cache').then(module => {
-      const gmailCache = module.getCachedEmails('gmail');
-      const microsoftCache = module.getCachedEmails('microsoft');
-      
       const restoredCache: Record<string, OAuthEmail[]> = {};
       
-      if (gmailCache && Array.isArray(gmailCache)) {
-        restoredCache['gmail'] = gmailCache;
-        console.log(`[UnifiedInbox] Restored ${gmailCache.length} Gmail emails from cache`);
-      }
-      
-      if (microsoftCache && Array.isArray(microsoftCache)) {
-        restoredCache['microsoft'] = microsoftCache;
-        console.log(`[UnifiedInbox] Restored ${microsoftCache.length} Outlook emails from cache`);
-      }
+      // Iterate through each provider and restore its cache by composite ID
+      providers.forEach(provider => {
+        const cached = module.getCachedEmails(provider.id);
+        if (cached && Array.isArray(cached)) {
+          restoredCache[provider.id] = cached;
+          console.log(`[UnifiedInbox] Restored ${cached.length} emails for ${provider.id} from cache`);
+        }
+      });
       
       if (Object.keys(restoredCache).length > 0) {
         setProviderEmailsCache(restoredCache);
         updateProviderCounts(restoredCache);
-        console.log('[UnifiedInbox] Sidebar counts restored from cache');
+        console.log('[UnifiedInbox] Sidebar counts restored from cache for', Object.keys(restoredCache).length, 'accounts');
       }
     });
-  }, []); // Run once on mount
+  }, [accountsLoaded, providers.length]); // Run when accounts are loaded and providers change
 
   // Set default provider to first account when accounts are loaded
   useEffect(() => {
@@ -359,34 +358,23 @@ export default function UnifiedInbox() {
   };
 
   // Update provider email counts after fetching
-  // Uses the providerEmailsCache to get accurate counts across all providers
+  // Uses the providerEmailsCache to get accurate counts per specific account
   const updateProviderCounts = (additionalCache?: Record<string, OAuthEmail[]>) => {
     // Merge current cache with any additional cache passed in
     const mergedCache = additionalCache ? { ...providerEmailsCache, ...additionalCache } : providerEmailsCache;
     
-    // Combine all cached emails from all providers
-    const allCachedEmails = Object.values(mergedCache).flat();
     console.log('[updateProviderCounts] Updating counts from cache:', {
       cacheKeys: Object.keys(mergedCache),
-      totalEmails: allCachedEmails.length,
       perProvider: Object.entries(mergedCache).map(([key, emails]) => ({ key, count: emails.length }))
     });
     
     setProviders(prevProviders => 
       prevProviders.map(provider => {
-        // Extract provider type from composite ID (format: "gmail_user@example.com")
-        const providerType = provider.id.split('_')[0]; // Get 'gmail' or 'microsoft'
+        // Get emails from the specific provider's cache entry (by exact ID match)
+        // This ensures each account shows only its own email count
+        const providerEmails = mergedCache[provider.id] || [];
         
-        // Count emails for this provider by matching providerName
-        const providerEmails = allCachedEmails.filter(email => {
-          // Gmail provider matches 'Gmail (OAuth)' or similar
-          if (providerType === 'gmail') return email.providerName?.toLowerCase().includes('gmail');
-          // Microsoft/Outlook provider matches 'Outlook (OAuth)' or similar
-          if (providerType === 'microsoft') return email.providerName?.toLowerCase().includes('outlook');
-          return false;
-        });
-        
-        console.log(`[updateProviderCounts] Provider ${provider.id} (type: ${providerType}): ${providerEmails.length} emails`);
+        console.log(`[updateProviderCounts] Provider ${provider.id}: ${providerEmails.length} emails from cache`);
         
         // Cast the emails to Email[] since we're converting OAuthEmail to Email
         return {
