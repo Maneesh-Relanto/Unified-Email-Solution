@@ -8,8 +8,8 @@
  * - Cache status info
  */
 
-import { useEffect, useState, useCallback } from 'react';
-import { getCachedEmails, setCachedEmails, clearProviderCache, getCacheStats, getProviderTTL } from './use-email-cache';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { getCachedEmails, setCachedEmails, clearProviderCache, getCacheStats, getProviderTTL, getCacheMetadata } from './use-email-cache';
 import type { OAuthEmail } from '@/pages/UnifiedInbox';
 
 export interface CacheStatus {
@@ -42,79 +42,74 @@ export interface UseEmailCacheReturn {
  * }
  */
 export const useEmailCache = (provider: string) => {
-  const [cachedEmails, setCachedEmails] = useState<OAuthEmail[] | null>(null);
-  const [cacheStatus, setCacheStatus] = useState<CacheStatus>({
-    cached: false,
-    valid: false,
-    ageMs: null,
-    remainingMs: null,
-  });
+  // Refresh counter to force re-fetch when user clicks refresh
+  // Also used to invalidate memos when cache is updated
+  const [refreshCounter, setRefreshCounter] = useState(0);
   
-  // Check cache on mount or provider change
-  useEffect(() => {
-    console.log(`[useEmailCache] Checking cache for provider: ${provider}`);
-    
+  // CRITICAL: Synchronously derive cache from sessionStorage whenever provider changes
+  // useMemo ensures we always read the correct provider's cache, never stale data
+  const cachedEmails = useMemo(() => {
+    console.log(`[useEmailCache] SYNC: Loading cache for provider: ${provider} (refresh: ${refreshCounter})`);
     const cached = getCachedEmails<OAuthEmail[]>(provider);
-    const providerTTL = getProviderTTL(provider);
-    
     if (cached && Array.isArray(cached)) {
-      console.log(`[useEmailCache] Found cached emails for ${provider} (${cached.length} emails)`);
-      setCachedEmails(cached);
-      
-      setCacheStatus({
+      console.log(`[useEmailCache] SYNC: Found ${cached.length} cached emails for ${provider}`);
+      return cached;
+    }
+    console.log(`[useEmailCache] SYNC: No cache found for ${provider}`);
+    return null;
+  }, [provider, refreshCounter]); // Re-compute when provider OR refreshCounter changes
+  
+  // Synchronously compute cache status from metadata
+  const cacheStatus = useMemo<CacheStatus>(() => {
+    const metadata = getCacheMetadata(provider);
+    
+    if (cachedEmails && Array.isArray(cachedEmails) && metadata) {
+      return {
         cached: true,
         valid: true,
-        ageMs: 0, // Could calculate from cache entry if needed
-        remainingMs: providerTTL,
-      });
-    } else {
-      console.log(`[useEmailCache] No valid cache for ${provider}`);
-      setCachedEmails(null);
-      setCacheStatus({
-        cached: false,
-        valid: false,
-        ageMs: null,
-        remainingMs: null,
-      });
+        ageMs: metadata.ageMs,
+        remainingMs: metadata.remainingMs,
+      };
     }
-  }, [provider]);
+    return {
+      cached: false,
+      valid: false,
+      ageMs: null,
+      remainingMs: null,
+    };
+  }, [provider, cachedEmails]);
   
   // Callback when emails are successfully fetched from API
   // Updates cache for future use
   const onEmailsFetched = useCallback((emails: OAuthEmail[]) => {
     console.log(`[useEmailCache] Caching ${emails.length} emails for provider: ${provider}`);
-    setCachedEmails(emails);
     
     // Store in sessionStorage with provider-specific TTL
     const providerTTL = getProviderTTL(provider);
-    import('./use-email-cache').then(module => {
-      module.setCachedEmails(provider, emails, providerTTL);
-    });
+    setCachedEmails(provider, emails, providerTTL);
+    
+    // Increment refreshCounter to invalidate useMemo and re-read from sessionStorage
+    setRefreshCounter(prev => prev + 1);
   }, [provider]);
   
   // Callback for manual "Refresh" button
   const onRefreshClick = useCallback(() => {
     console.log(`[useEmailCache] User clicked refresh for provider: ${provider}`);
     
-    // Clear cache
+    // Clear cache from sessionStorage
     clearProviderCache(provider);
     
-    // Clear state
-    setCachedEmails(null);
-    setCacheStatus({
-      cached: false,
-      valid: false,
-      ageMs: null,
-      remainingMs: null,
-    });
+    // Increment counter to invalidate useMemo and force re-read (which will find no cache)
+    setRefreshCounter(prev => prev + 1);
     
-    console.log(`[useEmailCache] Cache cleared for ${provider}, will fetch fresh on next load`);
+    console.log(`[useEmailCache] Cache cleared for ${provider}, triggering refresh`);
   }, [provider]);
   
   return {
     cachedEmails,
     cacheStatus,
     shouldFetchFresh: !cachedEmails || !cacheStatus.valid,
+    refreshCounter, // Used to trigger useEffect when refresh is clicked
     onEmailsFetched,
     onRefreshClick,
   };

@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LayoutGrid, Settings, Loader, Type, RotateCcw, AlertCircle, X } from "lucide-react";
+import { LayoutGrid, Settings, Loader, Type, AlertCircle, X, RefreshCw } from "lucide-react";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import type { Email } from "@/lib/mock-emails";
 import { useEmailCache } from "@/hooks/use-email-cache-hook";
@@ -150,11 +150,43 @@ export default function UnifiedInbox() {
   // Track last error time to prevent infinite retry loops
   const lastErrorTimeRef = useRef<number>(0);
   const ERROR_COOLDOWN_MS = 5000; // Don't retry for 5 seconds after an error
+  
+  // Track if we just wrote to cache to prevent showing READ notification immediately after WRITE
+  const justWroteToCacheRef = useRef<boolean>(false);
 
   // Initialize providers from OAuth accounts on mount
   useEffect(() => {
     fetchOAuthAccounts();
   }, []);
+  
+  // Restore sidebar counts from cache on component mount (e.g., when navigating back from settings)
+  useEffect(() => {
+    console.log('[UnifiedInbox] Restoring counts from cache on mount');
+    
+    // Import cache utils and restore cached emails for all providers
+    import('../hooks/use-email-cache').then(module => {
+      const gmailCache = module.getCachedEmails('gmail');
+      const microsoftCache = module.getCachedEmails('microsoft');
+      
+      const restoredCache: Record<string, OAuthEmail[]> = {};
+      
+      if (gmailCache && Array.isArray(gmailCache)) {
+        restoredCache['gmail'] = gmailCache;
+        console.log(`[UnifiedInbox] Restored ${gmailCache.length} Gmail emails from cache`);
+      }
+      
+      if (microsoftCache && Array.isArray(microsoftCache)) {
+        restoredCache['microsoft'] = microsoftCache;
+        console.log(`[UnifiedInbox] Restored ${microsoftCache.length} Outlook emails from cache`);
+      }
+      
+      if (Object.keys(restoredCache).length > 0) {
+        setProviderEmailsCache(restoredCache);
+        updateProviderCounts(restoredCache);
+        console.log('[UnifiedInbox] Sidebar counts restored from cache');
+      }
+    });
+  }, []); // Run once on mount
 
   // Set default provider to first account when accounts are loaded
   useEffect(() => {
@@ -185,6 +217,9 @@ export default function UnifiedInbox() {
     setOauthEmails([]);
     setSelectedEmailId(undefined); // Clear email selection to prevent cross-provider fetch errors
     
+    // Reset the cache write flag when provider changes
+    justWroteToCacheRef.current = false;
+    
     // Prevent infinite retry loops - don't fetch if we just had an error
     const timeSinceLastError = Date.now() - lastErrorTimeRef.current;
     if (timeSinceLastError < ERROR_COOLDOWN_MS) {
@@ -203,12 +238,21 @@ export default function UnifiedInbox() {
       currentLoadingIdRef.current = null;
     }
     
+    console.log('[UnifiedInbox] 🔄 PROVIDER SWITCHED TO:', selectedProviderId, {
+      cacheAvailable: !!emailCache.cachedEmails,
+      cacheCount: emailCache.cachedEmails?.length || 0,
+      currentEmailCount: oauthEmails.length
+    });
+    
     // Reset offsets when switching providers
     console.log('[UnifiedInbox] Resetting email offsets');
     setEmailOffsets({});
     
-    // TIER 1: Check cache first before making API call
-    if (!emailCache.shouldFetchFresh && emailCache.cachedEmails && emailCache.cachedEmails.length > 0) {
+    // TIER 1: ALWAYS check cache first - load from cache if available (even if expired)
+    // User can manually refresh using the Refresh button if they want latest data
+    console.log('[UnifiedInbox] Cache check for provider:', selectedProviderId, '| Has cache:', !!emailCache.cachedEmails, '| Count:', emailCache.cachedEmails?.length || 0);
+    
+    if (emailCache.cachedEmails && emailCache.cachedEmails.length > 0) {
       console.log('[UnifiedInbox] 📦 Using cached emails for provider:', selectedProviderId);
       console.log('[UnifiedInbox] Cache info:', emailCache.cacheStatus);
       
@@ -226,27 +270,43 @@ export default function UnifiedInbox() {
         setOauthEmails(emailCache.cachedEmails);
         
         // Update providerEmailsCache when loading from sessionStorage cache
-        setProviderEmailsCache(prev => ({
-          ...prev,
-          [selectedProviderId]: emailCache.cachedEmails
-        }));
+        const cacheKey = selectedProviderId;
+        console.log('[UnifiedInbox] Updating providerEmailsCache with key:', cacheKey, '| Email count:', emailCache.cachedEmails.length);
         
-        // Update counts after cache is populated
-        updateProviderCounts();
+        const updatedCache = {
+          ...providerEmailsCache,
+          [cacheKey]: emailCache.cachedEmails
+        };
         
-        // Show cache status in UI if enabled
-        if (showCacheInfo) {
+        setProviderEmailsCache(updatedCache);
+        
+        // Update counts with the new cache data (pass it directly to avoid async state issue)
+        console.log('[UnifiedInbox] Calling updateProviderCounts with fresh cache data');
+        updateProviderCounts({ [cacheKey]: emailCache.cachedEmails });
+        
+        // Only show cache status if we didn't just write to cache (avoid redundant notifications)
+        if (!justWroteToCacheRef.current) {
           const remaining = emailCache.cacheStatus.remainingMs || 0;
           const minutes = Math.floor(remaining / 60000);
           const seconds = Math.floor((remaining % 60000) / 1000);
-          statusBar.showInfo(`📦 Loaded from cache (expires in ${minutes}m ${seconds}s)`);
+          const count = emailCache.cachedEmails.length;
+          const isExpired = remaining <= 0;
+          
+          if (isExpired) {
+            statusBar.showInfo(`📦 READ FROM CACHE: ${count} email${count !== 1 ? 's' : ''} (expired - click Refresh for latest)`);
+          } else {
+            statusBar.showSuccess(`📦 READ FROM CACHE: ${count} email${count !== 1 ? 's' : ''} (expires in ${minutes}m ${seconds}s)`);
+          }
+        } else {
+          console.log('[UnifiedInbox] Skipping READ notification - just wrote to cache');
+          justWroteToCacheRef.current = false; // Reset flag after skipping
         }
-        return; // Skip API fetch since we have fresh cached data
+        return; // Skip API fetch - user can click Refresh button to get latest
       }
     }
     
-    // Fetch emails for the selected provider
-    console.log(`[UnifiedInbox] Fetching ${selectedProviderId} emails`);
+    // No cache found - fetch from server
+    console.log(`[UnifiedInbox] No cache found, fetching ${selectedProviderId} emails from server`);
     fetchOAuthEmails(selectedProviderId);
     
     // Cleanup function to clear loading message if component unmounts or provider changes
@@ -256,10 +316,9 @@ export default function UnifiedInbox() {
         currentLoadingIdRef.current = null;
       }
     };
-    // Note: emailCache is checked inside but not in dependencies to prevent infinite loops
-    // The shouldFetchFresh flag is sufficient to determine when to fetch
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProviderId, accountsLoaded]);
+    // Note: emailCache.cachedEmails is NOT in dependencies to avoid double-run after caching
+    // refreshCounter changes when user clicks Refresh button, forcing re-fetch
+  }, [selectedProviderId, accountsLoaded, emailCache.refreshCounter]);
 
   const fetchOAuthAccounts = async () => {
     try {
@@ -300,13 +359,16 @@ export default function UnifiedInbox() {
 
   // Update provider email counts after fetching
   // Uses the providerEmailsCache to get accurate counts across all providers
-  const updateProviderCounts = () => {
+  const updateProviderCounts = (additionalCache?: Record<string, OAuthEmail[]>) => {
+    // Merge current cache with any additional cache passed in
+    const mergedCache = additionalCache ? { ...providerEmailsCache, ...additionalCache } : providerEmailsCache;
+    
     // Combine all cached emails from all providers
-    const allCachedEmails = Object.values(providerEmailsCache).flat();
+    const allCachedEmails = Object.values(mergedCache).flat();
     console.log('[updateProviderCounts] Updating counts from cache:', {
-      cacheKeys: Object.keys(providerEmailsCache),
+      cacheKeys: Object.keys(mergedCache),
       totalEmails: allCachedEmails.length,
-      perProvider: Object.entries(providerEmailsCache).map(([key, emails]) => ({ key, count: emails.length }))
+      perProvider: Object.entries(mergedCache).map(([key, emails]) => ({ key, count: emails.length }))
     });
     
     setProviders(prevProviders => 
@@ -498,6 +560,13 @@ export default function UnifiedInbox() {
         });
         console.log('[UnifiedInbox] Converted emails:', convertedEmails);
         console.log('[UnifiedInbox] Provider names:', convertedEmails.map(e => e.providerName));
+        console.log('[UnifiedInbox] 🔍 DEBUG - Email distribution:', {
+          totalEmails: convertedEmails.length,
+          outlookEmails: convertedEmails.filter(e => e.providerName?.toLowerCase().includes('outlook')).length,
+          gmailEmails: convertedEmails.filter(e => e.providerName?.toLowerCase().includes('gmail')).length,
+          uniqueProviderNames: [...new Set(convertedEmails.map(e => e.providerName))],
+          firstEmailProvider: convertedEmails[0]?.providerName
+        });
         
         // Append or replace emails based on load type
         let finalEmailList: OAuthEmail[];
@@ -513,27 +582,63 @@ export default function UnifiedInbox() {
         } else {
           finalEmailList = convertedEmails;
           setOauthEmails(convertedEmails);
-          // TIER 1: Update cache with freshly fetched emails (only on initial load, not on load-more)
-          emailCache.onEmailsFetched(convertedEmails);
+          
+          // DON'T cache 'all' emails under 'all' key - split and cache individually instead
+          // This is handled below after splitting
         }
         
         // Update hasMore flag - if we got fewer NEW emails than requested, might not have more
         setHasMore(data.hasMore === true && newEmailsCount > 0);
         
         // CRITICAL: For 'all' provider, split emails by provider and cache individually
-        // This prevents double-counting when mixing 'all' and individual provider fetches
+        // This prevents double-counting and ensures cache hits when switching to individual providers
         const gmailEmails = finalEmailList.filter(e => e.providerName?.toLowerCase().includes('gmail'));
         const outlookEmails = finalEmailList.filter(e => e.providerName?.toLowerCase().includes('outlook'));
         
-        setProviderEmailsCache(prev => ({
-          ...prev,
+        console.log('[UnifiedInbox] 🔍 DEBUG - Split for all provider:', {
+          totalEmails: finalEmailList.length,
+          gmailCount: gmailEmails.length,
+          outlookCount: outlookEmails.length,
+          gmailProviderNames: gmailEmails.slice(0, 3).map(e => e.providerName),
+          outlookProviderNames: outlookEmails.slice(0, 3).map(e => e.providerName)
+        });
+        
+        // Cache split emails under individual provider keys (NOT under 'all' key)
+        // This ensures cache hits when user switches to Gmail or Outlook
+        if (!isLoadMore && gmailEmails.length > 0) {
+          import('../hooks/use-email-cache').then(module => {
+            const providerTTL = module.getProviderTTL('gmail');
+            module.setCachedEmails('gmail', gmailEmails, providerTTL);
+            console.log(`[UnifiedInbox] 💾 Cached ${gmailEmails.length} Gmail emails to emailify_cache_gmail`);
+          });
+        }
+        
+        if (!isLoadMore && outlookEmails.length > 0) {
+          import('../hooks/use-email-cache').then(module => {
+            const providerTTL = module.getProviderTTL('microsoft');
+            module.setCachedEmails('microsoft', outlookEmails, providerTTL);
+            console.log(`[UnifiedInbox] 💾 Cached ${outlookEmails.length} Outlook emails to emailify_cache_microsoft`);
+          });
+        }
+        
+        const updatedCache = {
+          ...providerEmailsCache,
           'gmail': gmailEmails,
           'microsoft': outlookEmails
           // Note: We DO NOT store under 'all' key to prevent double-counting
-        }));
+        };
         
-        // Update provider email counts using the cache
-        updateProviderCounts();
+        setProviderEmailsCache(updatedCache);
+        
+        // Update provider email counts using the fresh cache (pass directly to avoid async state issue)
+        updateProviderCounts({ 'gmail': gmailEmails, 'microsoft': outlookEmails });
+        
+        // Show cache write confirmation
+        if (!isLoadMore) {
+          const ttlMinutes = Math.floor(60 * 60 * 1000 / 60000); // 60 minutes default TTL
+          statusBar.showSuccess(`💾 WRITTEN TO CACHE: Gmail (${gmailEmails.length}), Outlook (${outlookEmails.length}) | TTL: ${ttlMinutes}m`);
+          justWroteToCacheRef.current = true; // Mark that we just wrote to prevent immediate READ notification
+        }
         
         setShowTimeoutDialog(false);
         statusBar.removeMessage(loadingId);
@@ -756,6 +861,12 @@ export default function UnifiedInbox() {
           // TIER 1: Update cache with freshly fetched emails (only on initial load, not on load-more)
           emailCache.onEmailsFetched(convertedEmails);
           
+          // Show cache write confirmation to user
+          // remainingMs is set to the full TTL after a fresh write
+          const ttlMinutes = Math.floor((emailCache.cacheStatus.remainingMs || 60 * 60 * 1000) / 60000);
+          statusBar.showSuccess(`💾 WRITTEN TO CACHE: ${convertedEmails.length} email${convertedEmails.length !== 1 ? 's' : ''} (TTL: ${ttlMinutes}m)`);
+          justWroteToCacheRef.current = true; // Mark that we just wrote to prevent immediate READ notification
+          
           // Set initial offset for this provider
           if (convertedEmails.length > 0) {
             setEmailOffsets(prev => ({
@@ -768,14 +879,16 @@ export default function UnifiedInbox() {
         // Update hasMore flag - if we got fewer emails than requested, might not have more
         setHasMore(data.hasMore === true && convertedEmails.length > 0);
         
-        // Update cache for this specific provider to preserve counts  
-        setProviderEmailsCache(prev => ({
-          ...prev,
+        // Update cache for this specific provider to preserve counts
+        const updatedCache = {
+          ...providerEmailsCache,
           [provider]: finalEmailList
-        }));
+        };
         
-        // Update provider email counts using the cache
-        updateProviderCounts();
+        setProviderEmailsCache(updatedCache);
+        
+        // Update provider email counts using the fresh cache (pass directly to avoid async state issue)
+        updateProviderCounts({ [provider]: finalEmailList });
         
         setShowTimeoutDialog(false);
         if (loadingId) {
@@ -958,15 +1071,6 @@ export default function UnifiedInbox() {
             {(loadingEmails || loadingMore) && (
               <Loader className="w-4 h-4 animate-spin text-primary" />
             )}
-            {/* TIER 1: Refresh button to clear cache and fetch fresh emails */}
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={emailCache.onRefreshClick}
-              title="Clear cache and fetch fresh emails"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </Button>
             {/* Font Size Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -995,6 +1099,16 @@ export default function UnifiedInbox() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button
+              onClick={emailCache.onRefreshClick}
+              variant="outline"
+              size="sm"
+              title="Refresh emails from server (bypass cache)"
+              className="gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
             <Button
               asChild
               variant="outline"

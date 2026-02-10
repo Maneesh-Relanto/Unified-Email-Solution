@@ -144,10 +144,11 @@ function EmailListItem({ email, isSelected, onClick }: EmailListItemProps) {
               {providerInfo && (
                 <span
                   className={cn(
-                    "text-[10px] font-medium text-white px-1.5 py-0.5 rounded uppercase tracking-wide",
+                    "text-[10px] font-normal text-white px-1 py-0.5 rounded uppercase tracking-wide inline-block scale-[0.7] origin-center",
                     providerInfo.color
                   )}
                   title={providerInfo.name}
+                  style={{ margin: '-2px' }}
                 >
                   {providerInfo.name}
                 </span>

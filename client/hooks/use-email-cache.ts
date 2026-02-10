@@ -79,6 +79,33 @@ const getCacheKey = (provider: string): string => {
 };
 
 /**
+ * Get cache metadata for a provider (TTL, age, remaining time)
+ * Returns null if cache doesn't exist
+ */
+export const getCacheMetadata = (provider: string): { ttl: number; ageMs: number; remainingMs: number } | null => {
+  try {
+    const cacheKey = getCacheKey(provider);
+    const cached = sessionStorage.getItem(cacheKey);
+    
+    if (!cached) {
+      return null;
+    }
+    
+    const entry: CacheEntry<any> = JSON.parse(cached);
+    const ageMs = Date.now() - entry.timestamp;
+    const remainingMs = Math.max(0, entry.ttl - ageMs);
+    
+    return {
+      ttl: entry.ttl,
+      ageMs,
+      remainingMs
+    };
+  } catch (error) {
+    return null;
+  }
+};
+
+/**
  * Get cached emails for a provider
  * Returns null if cache doesn't exist, is expired, or corrupted
  */
