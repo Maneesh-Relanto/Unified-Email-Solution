@@ -75,10 +75,12 @@ Emailify solves this by:
 
 ### For Users
 | Feature | Benefit |
-|---------|---------|
+|---------|----------|
 | **Multi-Account Unified Inbox** | Check all emails without switching apps |
 | **Privacy-First Design** | Your email stays between you and your provider |
-| **Secure OAuth2** | No passwords stored anywhere || **Privacy Screen Mode** 💡 | One-click blur overlay to hide emails when someone walks by || **Dark Mode & Customization** | Readable interface that respects your preferences |
+| **Secure OAuth2** | No passwords stored anywhere |
+| **Privacy Screen Mode** 💡 | One-click blur overlay to hide emails when someone walks by |
+| **Dark Mode & Customization** | Readable interface that respects your preferences |
 | **Multi-Provider Support** | Gmail, Outlook, Yahoo, Rediff in one place |
 
 ### For Developers
@@ -96,29 +98,29 @@ Emailify solves this by:
 
 ![Privacy Mode](https://img.shields.io/badge/privacy-instant%20blur-9cf?style=flat-square)
 
-Emailify includes a unique **Privacy Screen Mode** \ud83d\udca1 that instantly hides your emails when someone walks by your desk or you need to share your screen.
+Emailify includes a unique **Privacy Screen Mode** 💡 that instantly hides your emails when someone walks by your desk or you need to share your screen.
 
 ### How It Works
 
-1. **Click the lightbulb button** \ud83d\udca1 in the top-right corner
+1. **Click the lightbulb button** 💡 in the top-right corner
 2. **Entire screen blurs** with a semi-transparent overlay
 3. **All email content is hidden** from view
 4. **Click anywhere to disable** and return to normal view
 
 ### When To Use Privacy Screen Mode
 
-- \ud83c\udfe2 **Open Office Environments** - Someone walking behind your desk
-- \ud83d\udcf9 **Screen Sharing** - Quickly hide emails during video calls
-- \ud83d\udc65 **Public Spaces** - Coffee shops, airports, co-working spaces
-- \ud83d\udcca **Presentations** - Avoid accidental email exposure during demos
+- 🏢 **Open Office Environments** - Someone walking behind your desk
+- 📹 **Screen Sharing** - Quickly hide emails during video calls
+- 👥 **Public Spaces** - Coffee shops, airports, co-working spaces
+- 📊 **Presentations** - Avoid accidental email exposure during demos
 
 ### Privacy Benefits
 
-\u2705 **Instant activation** - One click, no delay  
-\u2705 **No data sent** - Purely visual overlay, no network activity  
-\u2705 **No logging** - Privacy mode state is never recorded  
-\u2705 **Keyboard shortcut ready** - Can be extended with hotkeys  
-\u2705 **Works everywhere** - Active across all pages and email views
+✅ **Instant activation** - One click, no delay
+✅ **No data sent** - Purely visual overlay, no network activity
+✅ **No logging** - Privacy mode state is never recorded
+✅ **Keyboard shortcut ready** - Can be extended with hotkeys
+✅ **Works everywhere** - Active across all pages and email views
 
 ### Technical Implementation
 
