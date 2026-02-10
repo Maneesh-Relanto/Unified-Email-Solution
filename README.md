@@ -171,6 +171,14 @@ cd emailify
 
 # Install dependencies
 pnpm install
+
+# Setup environment configuration
+# Copy template to confidential folder
+copy .env.example confidential\.env    # Windows
+cp .env.example confidential/.env      # Linux/Mac
+
+# Edit confidential/.env with your OAuth credentials
+# See: docs/OAUTH_IMPLEMENTATION.md for setup guide
 ```
 
 ### Running Development Server
@@ -202,7 +210,7 @@ Complete step-by-step guide to set up your local development environment and con
 - ✅ Microsoft Outlook OAuth setup (Azure AD registration)
 - ✅ PKCE (Proof Key for Code Exchange) security implementation
 - ✅ Encryption key generation for credential storage
-- ✅ Environment variables configuration (.env setup)
+- ✅ Environment variables configuration (confidential/.env setup)
 - ✅ Token refresh mechanisms
 - ✅ Complete API endpoint reference
 

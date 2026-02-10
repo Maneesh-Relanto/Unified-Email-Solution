@@ -1,4 +1,10 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+
+// Load environment variables from confidential/.env
+// This keeps actual credentials outside of Git tracking
+dotenv.config({ path: path.resolve(process.cwd(), "confidential/.env") });
+
 import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
