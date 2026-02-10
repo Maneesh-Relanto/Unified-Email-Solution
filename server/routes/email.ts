@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import { emailService } from '../services/email-service';
 import { emailCredentialStore, loadCredentialsFromEnv, getImapConfigForProvider } from '../config/email-config';
 import { EmailProviderFactory } from '../services/email/index';
+import { decrypt } from '../utils/crypto';
 import { z } from 'zod';
 
 /**
@@ -156,9 +157,6 @@ export async function getOAuthEmails(req: Request, res: Response) {
 
     console.log(`[OAuth Email Fetch] Found credential for: ${credential.email} (${credential.provider})`);
 
-    // Import decrypt utility
-    const { decrypt } = require('../utils/crypto');
-
     // Decrypt the stored tokens
     let accessToken = credential.oauthToken.accessToken;
     let refreshToken = credential.oauthToken.refreshToken;
@@ -238,7 +236,6 @@ export async function getOAuthEmails(req: Request, res: Response) {
  */
 function decryptTokens(credential: any): { accessToken: string; refreshToken: string } | null {
   try {
-    const { decrypt } = require('../utils/crypto');
     let accessToken = decrypt(credential.oauthToken.accessToken);
     let refreshToken = credential.oauthToken.refreshToken ? decrypt(credential.oauthToken.refreshToken) : '';
     return { accessToken, refreshToken };
