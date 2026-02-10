@@ -1,5 +1,23 @@
 {
-  "name": "fusion-starter",
+  "name": "emailify",
+  "version": "1.0.0",
+  "description": "Privacy-first unified email client with OAuth2 authentication for Gmail, Outlook, Yahoo, and Rediff",
+  "author": "Maneesh Thakur",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maneeshthakur/unified-email-solution.git"
+  },
+  "keywords": [
+    "email-client",
+    "unified-inbox",
+    "oauth2",
+    "privacy-first",
+    "gmail",
+    "outlook",
+    "yahoo",
+    "security"
+  ],
   "private": true,
   "type": "module",
   "pkg": {

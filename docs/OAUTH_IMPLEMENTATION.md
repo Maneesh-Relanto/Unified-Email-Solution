@@ -2,6 +2,9 @@
 
 Complete OAuth2 authentication system for Gmail and Outlook email access.
 
+> 🚀 **New to Emailify?** Start with [QUICK_START.md](../QUICK_START.md) for a step-by-step setup guide.  
+> This document provides technical details for developers who want to understand the OAuth implementation.
+
 ## Overview
 
 **Status**: ✅ Production-Ready

@@ -2,6 +2,12 @@
 
 This folder contains comprehensive developer documentation for the Emailify unified email client.
 
+## 🚀 Getting Started
+
+**New Developers Start Here:**
+
+- **[../QUICK_START.md](../QUICK_START.md)** - ⭐ **Complete step-by-step setup guide** (15 minutes from clone to running app)
+
 ## Setup & Configuration
 
 - **[OAUTH_IMPLEMENTATION.md](./OAUTH_IMPLEMENTATION.md)** - Complete OAuth2 authentication setup for Google, Microsoft, Yahoo, and Rediff email providers
@@ -34,4 +40,4 @@ All documentation in this folder is **included in the public repository**. These
 
 ---
 
-**Last Updated**: February 8, 2026
+**Last Updated**: February 11, 2026

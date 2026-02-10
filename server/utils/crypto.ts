@@ -7,7 +7,26 @@ import crypto from 'node:crypto';
 
 // Encryption configuration
 const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-dev-key-change-in-production-32-chars!!';
+
+/**
+ * Get encryption key from environment (lazy-loaded)
+ * This ensures environment variables are loaded before accessing the key
+ */
+function getEncryptionKey(): Buffer {
+  const keyHex = process.env.ENCRYPTION_KEY || 'default-dev-key-change-in-production-32-chars!!';
+  
+  // For AES-256, we need exactly 32 bytes (64 hex characters)
+  // If key is already 64 hex chars, use it directly
+  // Otherwise, hash it to get consistent 32 bytes
+  if (keyHex.length === 64 && /^[0-9a-f]+$/i.test(keyHex)) {
+    return Buffer.from(keyHex, 'hex');
+  }
+  
+  // If not proper hex, create a hash of it to get 32 bytes
+  const crypto = require('node:crypto');
+  const hash = crypto.createHash('sha256').update(keyHex).digest();
+  return hash;
+}
 
 /**
  * Generate a valid encryption key (32 bytes for AES-256)
@@ -25,13 +44,8 @@ export function encrypt(text: string): string {
   try {
     if (!text) return '';
 
-    // Use first 32 bytes of encryption key
-    const key = Buffer.from(
-      ENCRYPTION_KEY.length >= 64 
-        ? ENCRYPTION_KEY.substring(0, 64)
-        : ENCRYPTION_KEY.padEnd(64, '0'),
-      'hex'
-    );
+    // Get encryption key as Buffer
+    const key = getEncryptionKey();
 
     // Generate random IV (initialization vector)
     const iv = crypto.randomBytes(16);
@@ -70,13 +84,8 @@ export function decrypt(encryptedText: string): string {
     const iv = Buffer.from(parts[0], 'hex');
     const encrypted = parts[1];
 
-    // Use first 32 bytes of encryption key
-    const key = Buffer.from(
-      ENCRYPTION_KEY.length >= 64 
-        ? ENCRYPTION_KEY.substring(0, 64)
-        : ENCRYPTION_KEY.padEnd(64, '0'),
-      'hex'
-    );
+    // Get encryption key as Buffer
+    const key = getEncryptionKey();
 
     // Create decipher
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);

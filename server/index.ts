@@ -8,7 +8,7 @@ dotenv.config({ path: path.resolve(process.cwd(), "confidential/.env") });
 import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
-import authRoutes, { handleAuthStatus, handleAuthDisconnect } from "./routes/auth";
+import authRoutes, { handleAuthStatus, handleAuthDisconnect, handleOAuthConfigStatus } from "./routes/auth";
 import {
   initializeProviders,
   getAllEmails,
@@ -51,6 +51,7 @@ export function createServer() {
 
   // OAuth auth status and management endpoints
   app.get("/api/email/auth/status", handleAuthStatus);
+  app.get("/api/email/oauth-config", handleOAuthConfigStatus);
   app.post("/api/email/auth/disconnect", handleAuthDisconnect);
 
   // Email API routes (IMAP/OAuth/etc)

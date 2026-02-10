@@ -257,9 +257,20 @@ export class MicrosoftOAuthService {
     }
   }
 }
-// Export singleton instance
-export const microsoftOAuthService = new MicrosoftOAuthService({
-  clientId: process.env.MICROSOFT_CLIENT_ID || '',
-  clientSecret: process.env.MICROSOFT_CLIENT_SECRET || '',
-  redirectUri: process.env.MICROSOFT_REDIRECT_URI || 'http://localhost:8080/auth/microsoft/callback',
+
+// Lazy-initialized singleton instance
+// This ensures environment variables are loaded before initialization
+let _microsoftOAuthServiceInstance: MicrosoftOAuthService | null = null;
+
+export const microsoftOAuthService = new Proxy({} as MicrosoftOAuthService, {
+  get(_target, prop) {
+    if (!_microsoftOAuthServiceInstance) {
+      _microsoftOAuthServiceInstance = new MicrosoftOAuthService({
+        clientId: process.env.MICROSOFT_CLIENT_ID || '',
+        clientSecret: process.env.MICROSOFT_CLIENT_SECRET || '',
+        redirectUri: process.env.MICROSOFT_REDIRECT_URI || 'http://localhost:8080/auth/microsoft/callback',
+      });
+    }
+    return (_microsoftOAuthServiceInstance as any)[prop];
+  },
 });

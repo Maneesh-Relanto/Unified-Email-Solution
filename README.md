@@ -157,36 +157,39 @@ pnpm (dependency management)
 
 ## 🚀 Getting Started
 
-### Prerequisites
-```bash
-Node.js 18+ 
-pnpm 8+
-```
+### 📖 New to Emailify?
 
-### Installation
-```bash
-# Clone repository
-git clone https://github.com/yourusername/emailify.git
-cd emailify
+**Follow our comprehensive Quick Start Guide:**
 
-# Install dependencies
+👉 **[QUICK_START.md](./QUICK_START.md)** - Complete step-by-step setup (15 minutes)
+
+Covers:
+- ✅ Installation
+- ✅ OAuth credentials setup (Gmail + Outlook)
+- ✅ Environment configuration
+- ✅ Running the server
+- ✅ Connecting your first account
+- ✅ Troubleshooting common issues
+
+### TL;DR - Quick Setup
+
+```bash
+# 1. Clone and install
+git clone https://github.com/maneeshthakur/unified-email-solution.git
+cd unified-email-solution
 pnpm install
 
-# Setup environment configuration
-# Copy template to confidential folder
+# 2. Setup environment
 copy .env.example confidential\.env    # Windows
 cp .env.example confidential/.env      # Linux/Mac
 
-# Edit confidential/.env with your OAuth credentials
-# See: docs/OAUTH_IMPLEMENTATION.md for setup guide
-```
+# 3. Add OAuth credentials to confidential/.env
+#    See QUICK_START.md for detailed instructions
 
-### Running Development Server
-```bash
-# Set port (optional, defaults to 8080)
-$env:PORT='8080'
+# 4. Generate encryption key
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
-# Start dev server with hot reload
+# 5. Start server
 pnpm dev
 ```
 
@@ -195,11 +198,12 @@ Server starts at `http://localhost:8080`
 ### Building for Production
 ```bash
 pnpm build
+pnpm start
 ```
 
 ---
 
-## � OAuth2 Setup & Configuration
+## 🔑 OAuth2 Setup & Configuration
 
 ### For Developers: Project Setup with OAuth2
 
@@ -350,7 +354,7 @@ POST /api/email/refresh            - Refresh email credentials
 
 ---
 
-##  License
+## 📄 License
 
 MIT License - See LICENSE file for details
 
@@ -383,7 +387,7 @@ Your email account is yours alone. We are merely providing the interface to mana
 
 ---
 
-**Last Updated**: February 8, 2026  
+**Last Updated**: February 11, 2026  
 **Status**: ✅ Production Ready  
 **Build**: ✅ Passing  
 **Security Audit**: ✅ Recent SonarQube validation completed

@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { ThemeDropdown } from "@/components/ThemeDropdown";
 import { SecurityButton } from "@/components/SecurityButton";
 import { OAuthSettingsForm } from "@/components/OAuthSettingsForm";
+import { OAuthConfigStatus } from "@/components/OAuthConfigStatus";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import { TTLConfigurationDialog } from "@/components/TTLConfigurationDialog";
 import { EmailLoadingSettingsDialog } from "@/components/EmailLoadingSettingsDialog";
@@ -622,6 +623,11 @@ export default function SettingsPage() {
             {/* Tab: Connected Accounts */}
             {activeTab === "accounts" && (
               <div>
+                {/* OAuth Configuration Status */}
+                <section className="mb-8">
+                  <OAuthConfigStatus />
+                </section>
+
                 {/* Account Summary */}
                 {!loading && accounts.length > 0 && (
                   <section className="mb-8">

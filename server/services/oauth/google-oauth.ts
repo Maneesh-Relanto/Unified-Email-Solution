@@ -224,9 +224,20 @@ export class GoogleOAuthService {
     }
   }
 }
-// Export singleton instance
-export const googleOAuthService = new GoogleOAuthService({
-  clientId: process.env.GOOGLE_CLIENT_ID || '',
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-  redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8080/auth/google/callback',
+
+// Lazy-initialized singleton instance
+// This ensures environment variables are loaded before initialization
+let _googleOAuthServiceInstance: GoogleOAuthService | null = null;
+
+export const googleOAuthService = new Proxy({} as GoogleOAuthService, {
+  get(_target, prop) {
+    if (!_googleOAuthServiceInstance) {
+      _googleOAuthServiceInstance = new GoogleOAuthService({
+        clientId: process.env.GOOGLE_CLIENT_ID || '',
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+        redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8080/auth/google/callback',
+      });
+    }
+    return (_googleOAuthServiceInstance as any)[prop];
+  },
 });

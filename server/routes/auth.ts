@@ -359,6 +359,41 @@ export async function handleAuthStatus(req: Request, res: Response) {
   }
 }
 
+/**
+ * GET /api/email/oauth-config
+ * Returns OAuth provider configuration status from environment
+ */
+export async function handleOAuthConfigStatus(req: Request, res: Response) {
+  try {
+    const googleConfigured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+    const microsoftConfigured = !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET);
+
+    const config = {
+      google: {
+        configured: googleConfigured,
+        provider: 'Gmail',
+        redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8080/auth/google/callback',
+      },
+      microsoft: {
+        configured: microsoftConfigured,
+        provider: 'Outlook',
+        redirectUri: process.env.MICROSOFT_REDIRECT_URI || 'http://localhost:8080/auth/microsoft/callback',
+      },
+    };
+
+    res.json({
+      success: true,
+      data: config,
+    });
+  } catch (error) {
+    logOAuthError('system' as any, 'OAuth config check failed', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check OAuth configuration',
+    });
+  }
+}
+
 export async function handleAuthDisconnect(req: Request, res: Response) {
   try {
     const { provider, email } = req.body;
