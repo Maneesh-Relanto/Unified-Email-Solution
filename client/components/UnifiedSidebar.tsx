@@ -78,36 +78,36 @@ export function UnifiedSidebar({
               key={provider.id}
               onClick={() => onProviderSelect(provider.id)}
               className={cn(
-                "w-full px-3 py-2 rounded-lg mb-1 text-left transition-all flex items-center gap-3",
+                "w-full px-3 py-2 rounded-lg mb-1 text-left transition-all flex flex-col gap-1",
                 selectedProviderId === provider.id
                   ? "bg-primary text-primary-foreground shadow-md"
                   : "text-foreground hover:bg-slate-200",
               )}
             >
-              {provider.icon ? (
-                <span className="flex-shrink-0 text-lg">{provider.icon}</span>
-              ) : (
-                <div
-                  className={cn(
-                    "flex-shrink-0 w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold",
-                    provider.color || "bg-gray-500"
-                  )}
-                  title={provider.name}
-                >
-                  {provider.abbreviation || initials}
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{provider.name}</p>
-                {provider.email && (
-                  <p className="text-[10px] text-muted-foreground truncate mb-0.5" title={provider.email}>
-                    {provider.email}
-                  </p>
+              <div className="flex items-center gap-2">
+                {provider.icon ? (
+                  <span className="flex-shrink-0 text-lg">{provider.icon}</span>
+                ) : (
+                  <div
+                    className={cn(
+                      "flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-white text-xs font-bold",
+                      provider.color || "bg-gray-500"
+                    )}
+                    title={provider.name}
+                  >
+                    {provider.abbreviation || initials}
+                  </div>
                 )}
-                <p className="text-xs opacity-70">
-                  {emailCount} email{emailCount !== 1 ? 's' : ''}
-                </p>
+                <p className="font-medium text-sm truncate flex-1">{provider.name}</p>
               </div>
+              {provider.email && (
+                <p className="text-[11px] text-muted-foreground break-words whitespace-normal leading-tight px-0.5">
+                  {provider.email}
+                </p>
+              )}
+              <p className="text-xs opacity-70 px-0.5">
+                {emailCount} email{emailCount !== 1 ? 's' : ''}
+              </p>
             </button>
           );
         })}
