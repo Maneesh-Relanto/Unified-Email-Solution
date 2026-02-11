@@ -12,12 +12,18 @@ import rateLimit from 'express-rate-limit';
  * Configure CORS with whitelist
  */
 export function configureCORS(app: Express) {
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',').map(o => o.trim());
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:8080').split(',').map(o => o.trim());
 
   app.use(cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
+
+      // In development, allow all localhost origins
+      if (isDevelopment && origin.startsWith('http://localhost:')) {
+        return callback(null, true);
+      }
 
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -38,19 +44,26 @@ export function configureCORS(app: Express) {
  * Configure security headers with Helmet
  */
 export function configureSecurityHeaders(app: Express) {
+  // Build CSP directives conditionally
+  const cspDirectives: any = {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", "'unsafe-inline'"],
+    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+    imgSrc: ["'self'", 'data:', 'https:'],
+    connectSrc: ["'self'", 'https://accounts.google.com', 'https://login.microsoftonline.com'],
+    fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+    objectSrc: ["'none'"],
+  };
+
+  // Only add upgradeInsecureRequests in production
+  if (process.env.NODE_ENV === 'production') {
+    cspDirectives.upgradeInsecureRequests = [];
+  }
+
   // Use helmet with custom configuration
   app.use(helmet({
     contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'", 'https://accounts.google.com', 'https://login.microsoftonline.com'],
-        fontSrc: ["'self'"],
-        objectSrc: ["'none'"],
-        upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : undefined,
-      },
+      directives: cspDirectives,
     },
     hsts: {
       maxAge: 31536000, // 1 year in seconds
