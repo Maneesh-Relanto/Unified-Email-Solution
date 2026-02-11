@@ -8,6 +8,16 @@ import { emailService } from '../services/email-service';
 import { emailCredentialStore, loadCredentialsFromEnv, getImapConfigForProvider } from '../config/email-config';
 import { EmailProviderFactory } from '../services/email/index';
 import { decrypt } from '../utils/crypto';
+import { secureConsole } from '../utils/logging-sanitizer';
+import {
+  sendSafeError,
+  sendValidationError,
+  sendAuthenticationError,
+  sendNotFoundError,
+  sendConflictError,
+  sendInternalError,
+  ErrorCategory,
+} from '../utils/error-handler';
 import { z } from 'zod';
 
 /**
@@ -33,9 +43,8 @@ export async function initializeProviders(req: Request, res: Response) {
     const storedCredentials = emailCredentialStore.getAllCredentials();
 
     if (storedCredentials.length === 0) {
-      return res.status(400).json({
-        error: 'No email credentials configured',
-        message: 'Please add email accounts in settings or set environment variables',
+      return sendValidationError(res, new Error('No credentials configured'), {
+        action: 'initialize',
       });
     }
 
@@ -43,7 +52,7 @@ export async function initializeProviders(req: Request, res: Response) {
       try {
         await emailService.initializeProvider(credentials);
       } catch (error) {
-        console.error(`Failed to initialize ${credentials.email}:`, error);
+        secureConsole.error('Failed to initialize provider:', error);
       }
     }
 
@@ -54,10 +63,7 @@ export async function initializeProviders(req: Request, res: Response) {
       accounts,
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to initialize providers',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    sendInternalError(res, error, { action: 'initializeProviders' });
   }
 }
 
@@ -82,10 +88,7 @@ export async function getAllEmails(req: Request, res: Response) {
       emails,
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to fetch emails',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    sendInternalError(res, error, { action: 'getAllEmails' });
   }
 }
 
@@ -101,9 +104,8 @@ export async function getEmailsByProvider(req: Request, res: Response) {
     const unreadOnly = req.query.unreadOnly === 'true';
 
     if (!emailService.isInitialized(emailAddress)) {
-      return res.status(404).json({
-        error: 'Provider not initialized',
-        message: `No provider found for: ${emailAddress}`,
+      return sendNotFoundError(res, new Error('Provider not initialized'), {
+        action: 'getEmailsByProvider',
       });
     }
 
@@ -118,10 +120,7 @@ export async function getEmailsByProvider(req: Request, res: Response) {
       emails,
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to fetch emails',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    sendInternalError(res, error, { action: 'getEmailsByProvider' });
   }
 }
 
@@ -139,7 +138,7 @@ export async function getOAuthEmails(req: Request, res: Response) {
     const skip = Number.parseInt(req.query.skip as string) || 0;
     const unreadOnly = req.query.unreadOnly === 'true';
 
-    console.log(`[OAuth Email Fetch] Requesting emails for: ${email}`);
+    secureConsole.log('[OAuth Email Fetch] Requesting emails', { emailDomain: email.split('@')[1] });
 
     // Find credential in storage (could be google_email or microsoft_email)
     let credential = emailCredentialStore.getOAuthCredential(`google_${email}`);
@@ -148,32 +147,34 @@ export async function getOAuthEmails(req: Request, res: Response) {
     }
 
     if (!credential) {
-      console.error(`[OAuth Email Fetch] No credential found for: ${email}`);
-      return res.status(404).json({
-        error: 'OAuth credential not found',
-        message: `No OAuth credential found for: ${email}. Please authenticate first at /auth/google/login or /auth/microsoft/login`,
+      secureConsole.error('[OAuth Email Fetch] No credential found', { email });
+      return sendNotFoundError(res, new Error('OAuth credential not found'), {
+        action: 'getOAuthEmails',
       });
     }
 
-    console.log(`[OAuth Email Fetch] Found credential for: ${credential.email} (${credential.provider})`);
+    secureConsole.log('[OAuth Email Fetch] Found credential', { provider: credential.provider });
 
     // Decrypt the stored tokens
     let accessToken = credential.oauthToken.accessToken;
     let refreshToken = credential.oauthToken.refreshToken;
     
-    console.log(`[OAuth Email Fetch] Access token length: ${accessToken.length}, Refresh token: ${refreshToken ? 'present' : 'missing'}`);
+    secureConsole.log('[OAuth Email Fetch] Token state', { 
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+    });
 
     try {
       accessToken = decrypt(accessToken);
       if (refreshToken) {
         refreshToken = decrypt(refreshToken);
       }
-      console.log(`[OAuth Email Fetch] Tokens decrypted successfully`);
+      secureConsole.log('[OAuth Email Fetch] Tokens decrypted successfully');
     } catch (decryptError) {
-      console.error('[OAuth Email Fetch] Decrypt error:', decryptError);
-      return res.status(400).json({
-        error: 'Failed to decrypt OAuth credentials',
-        message: 'Your stored credentials are corrupted. Please re-authenticate.',
+      secureConsole.error('[OAuth Email Fetch] Decrypt error:', decryptError);
+      return sendValidationError(res, decryptError, {
+        action: 'getOAuthEmails',
+        step: 'decrypt',
       });
     }
 
@@ -191,19 +192,18 @@ export async function getOAuthEmails(req: Request, res: Response) {
       },
     });
 
-    console.log(`[OAuth Email Fetch] OAuth provider created for: ${credential.provider}`);
+    secureConsole.log('[OAuth Email Fetch] OAuth provider created', { provider: credential.provider });
 
     // Authenticate and fetch emails
     const authenticated = await oauthProvider.authenticate();
     if (!authenticated) {
-      console.error(`[OAuth Email Fetch] Authentication failed for: ${email}`);
-      return res.status(401).json({
-        error: 'Authentication failed',
-        message: 'Could not authenticate with OAuth provider. Your token may have expired.',
+      secureConsole.error('[OAuth Email Fetch] Authentication failed', { email });
+      return sendAuthenticationError(res, new Error('OAuth provider authentication failed'), {
+        action: 'getOAuthEmails',
       });
     }
 
-    console.log(`[OAuth Email Fetch] Successfully authenticated for: ${email}`);
+    secureConsole.log('[OAuth Email Fetch] Successfully authenticated');
 
     // Fetch emails
     const emails = await oauthProvider.fetchEmails({
@@ -212,7 +212,11 @@ export async function getOAuthEmails(req: Request, res: Response) {
       unreadOnly,
     });
 
-    console.log(`[OAuth Email Fetch] Fetched ${emails.length} emails for: ${email} (skip: ${skip}, limit: ${limit})`);
+    secureConsole.log('[OAuth Email Fetch] Fetched emails', { 
+      count: emails.length,
+      skip,
+      limit,
+    });
 
     res.json({
       success: true,
@@ -223,11 +227,8 @@ export async function getOAuthEmails(req: Request, res: Response) {
       hasMore: emails.length === limit, // If we got full limit, there might be more
     });
   } catch (error) {
-    console.error('[OAuth Email Fetch Error]', error);
-    res.status(500).json({
-      error: 'Failed to fetch OAuth emails',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    secureConsole.error('[OAuth Email Fetch Error]', error);
+    sendInternalError(res, error, { action: 'getOAuthEmails' });
   }
 }
 
@@ -240,7 +241,7 @@ function decryptTokens(credential: any): { accessToken: string; refreshToken: st
     let refreshToken = credential.oauthToken.refreshToken ? decrypt(credential.oauthToken.refreshToken) : '';
     return { accessToken, refreshToken };
   } catch (decryptError) {
-    console.error(`[OAuth] Decryption error for ${credential.email}:`, decryptError);
+    secureConsole.error('[OAuth] Decryption error', decryptError);
     return null;
   }
 }
@@ -297,77 +298,63 @@ export async function getAllOAuthEmails(req: Request, res: Response) {
     const allCredentials = emailCredentialStore.getAllOAuthCredentials();
 
     if (allCredentials.length === 0) {
-      return res.status(400).json({
-        error: 'No OAuth accounts connected',
-        message: 'Please authenticate with Google or Microsoft first',
+      return sendValidationError(res, new Error('No OAuth accounts connected'), {
+        action: 'getAllOAuthEmails',
       });
     }
 
     const allEmails = [];
-    const errors = [];
-    const providerMetrics: any[] = [];
+    const errors: Array<{ provider: string; message: string }> = [];
 
-    console.log(`\n[getAllOAuthEmails] Fetching from ${allCredentials.length} providers with limit=${limit}, skip=${skip}`);
+    secureConsole.log('[getAllOAuthEmails] Fetching from accounts', { count: allCredentials.length, limit, skip });
 
     // Fetch from each account
     for (let i = 0; i < allCredentials.length; i++) {
       const credential = allCredentials[i];
       const startTime = Date.now();
       try {
-        console.log(`  [${i + 1}/${allCredentials.length}] Fetching from ${credential.email}...`);
+        secureConsole.log(`[getAllOAuthEmails] Fetching account`, { accountIndex: i + 1, total: allCredentials.length });
         const result = await fetchEmailsFromProvider(credential, limit, skip, unreadOnly);
         const duration = Date.now() - startTime;
         
         if (result.error) {
-          console.log(`    ❌ Error: ${result.error}`);
-          errors.push(result.error);
+          secureConsole.error('[getAllOAuthEmails] Error from provider:', result.error);
+          errors.push({ provider: credential.provider, message: 'Failed to fetch from this account' });
         } else {
-          console.log(`    ✓ Got ${result.emails.length} emails (${duration}ms)`);
+          secureConsole.log('[getAllOAuthEmails] Got emails', { count: result.emails.length, duration });
           allEmails.push(...result.emails);
-          providerMetrics.push({
-            provider: credential.email,
-            count: result.emails.length,
-            duration,
-          });
         }
       } catch (error) {
-        const errorMsg = `${credential.email}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        console.log(`    ❌ Exception: ${errorMsg}`);
-        errors.push(errorMsg);
+        secureConsole.error('[getAllOAuthEmails] Exception from provider:', error);
+        errors.push({ provider: credential.provider, message: 'Provider error' });
       }
     }
 
     // Sort by date descending
     allEmails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    // CRITICAL FIX: Truncate to enforce batch size limit ACROSS ALL PROVIDERS
-    // Don't return more than limit emails total (not limit per provider!)
+    // Truncate to enforce batch size limit ACROSS ALL PROVIDERS
     const finalEmails = allEmails.slice(0, limit);
     const hasMore = allEmails.length > limit;
 
-    console.log(`[getAllOAuthEmails] Total fetched: ${allEmails.length}, Returning: ${finalEmails.length}, Has more: ${hasMore}\n`);
+    secureConsole.log('[getAllOAuthEmails] Returning results', { 
+      count: finalEmails.length,
+      hasMore, 
+      errorCount: errors.length 
+    });
 
+    // Only include high-level status in response, not detailed errors
     res.json({
       success: true,
       count: finalEmails.length,
-      totalFetched: allEmails.length,
       accounts: allCredentials.length,
-      errors: errors.length > 0 ? errors : undefined,
-      debug: {
-        limit,
-        skip,
-        hasMore,
-        providerMetrics,
-      },
-      emails: finalEmails,
+      hasErrors: errors.length > 0,
       hasMore,
+      emails: finalEmails,
     });
   } catch (error) {
-    console.error('[OAuth Email Fetch Error]', error);
-    res.status(500).json({
-      error: 'Failed to fetch from OAuth accounts',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    secureConsole.error('[getAllOAuthEmails] Error:', error);
+    sendInternalError(res, error, { action: 'getAllOAuthEmails' });
   }
 }
 
@@ -384,10 +371,7 @@ export async function getAccounts(_req: Request, res: Response) {
       accounts,
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to get accounts',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    sendInternalError(res, error, { action: 'getAccounts' });
   }
 }
 
@@ -404,10 +388,7 @@ export function getConfiguredAccounts(_req: Request, res: Response) {
       accounts,
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to get configured accounts',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    sendInternalError(res, error, { action: 'getConfiguredAccounts' });
   }
 }
 
@@ -420,10 +401,7 @@ export function getAccountsByProvider(req: Request, res: Response) {
     const { provider } = req.params;
     
     if (!['gmail', 'yahoo', 'outlook', 'rediff'].includes(provider)) {
-      return res.status(400).json({
-        error: 'Invalid provider',
-        message: `Provider must be one of: gmail, yahoo, outlook, rediff`,
-      });
+      return sendValidationError(res, new Error('Invalid provider'));
     }
 
     const accounts = emailCredentialStore.getCredentialsByProvider(
@@ -443,10 +421,7 @@ export function getAccountsByProvider(req: Request, res: Response) {
       accounts: accountList,
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to get accounts by provider',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    sendInternalError(res, error, { action: 'getAccountsByProvider' });
   }
 }
 
@@ -465,29 +440,20 @@ export function addEmailAccount(req: Request, res: Response) {
     // Validate input
     const validation = AddEmailSchema.safeParse(req.body);
     if (!validation.success) {
-      return res.status(400).json({
-        error: 'Validation error',
-        details: validation.error.errors,
-      });
+      return sendValidationError(res, new Error('Invalid input'));
     }
 
     const { email, password, provider } = validation.data;
 
     // Check if account already exists
     if (emailCredentialStore.hasCredentials(email)) {
-      return res.status(409).json({
-        error: 'Account already exists',
-        message: `Email account ${email} is already configured`,
-      });
+      return sendConflictError(res, new Error('Account already configured'));
     }
 
     // Get IMAP config for provider
     const imapConfig = getImapConfigForProvider(provider);
     if (!imapConfig) {
-      return res.status(400).json({
-        error: 'Invalid provider',
-        message: `Unsupported provider: ${provider}`,
-      });
+      return sendValidationError(res, new Error('Unsupported provider'));
     }
 
     // Store credentials (password will be encrypted automatically)
@@ -504,7 +470,7 @@ export function addEmailAccount(req: Request, res: Response) {
 
     res.json({
       success: true,
-      message: `Email account ${email} added successfully`,
+      message: `Email account added successfully`,
       account: {
         email,
         provider,
@@ -512,10 +478,7 @@ export function addEmailAccount(req: Request, res: Response) {
       },
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to add email account',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    sendInternalError(res, error, { action: 'addEmailAccount' });
   }
 }
 
@@ -528,16 +491,13 @@ export function removeEmailAccount(req: Request, res: Response) {
     const { email } = req.params;
 
     if (!emailCredentialStore.hasCredentials(email)) {
-      return res.status(404).json({
-        error: 'Account not found',
-        message: `Email account ${email} is not configured`,
-      });
+      return sendNotFoundError(res, new Error('Account not found'));
     }
 
     // Disconnect if initialized
     if (emailService.isInitialized(email)) {
       emailService.disconnectProvider(email).catch((err) => {
-        console.error(`Error disconnecting ${email}:`, err);
+        secureConsole.error('Error disconnecting provider:', err);
       });
     }
 
@@ -545,13 +505,10 @@ export function removeEmailAccount(req: Request, res: Response) {
 
     res.json({
       success: true,
-      message: `Email account ${email} removed successfully`,
+      message: `Email account removed successfully`,
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to remove email account',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    sendInternalError(res, error, { action: 'removeEmailAccount' });
   }
 }
 
@@ -602,32 +559,33 @@ export async function testConnectionWithProgress(req: Request, res: Response) {
     const cleanPassword = password.replace(/\s+/g, '');
     
     if (cleanPassword !== password) {
-      console.log(`✂️  Stripped ${password.length - cleanPassword.length} spaces from password`);
-      console.log(`📏 Clean password length: ${cleanPassword.length} chars\n`);
+      secureConsole.log('[testConnectionWithProgress] Stripped spaces from password', {
+        originalLength: password.length,
+        cleanLength: cleanPassword.length,
+      });
     }
 
     // Step 2: Get IMAP Config
-    console.log('📋 STEP 2: Retrieving IMAP configuration...');
+    secureConsole.log('[testConnectionWithProgress] Retrieving IMAP configuration');
     const imapConfig = getImapConfigForProvider(provider);
     if (!imapConfig) {
-      console.error(`❌ No IMAP config found for provider: ${provider}\n`);
+      secureConsole.error('[testConnectionWithProgress] No IMAP config found', { provider });
       return res.json({
         success: false,
         step: 2,
         stepName: 'Retrieving Server Config',
         status: 'failed',
-        message: `Unsupported provider: ${provider}. Supported: gmail, yahoo, outlook, rediff`,
+        message: `Unsupported provider. Supported: gmail, yahoo, outlook, rediff`,
       });
     }
     
-    console.log('✅ IMAP Config retrieved:');
-    console.log(`   Host: ${imapConfig.host}`);
-    console.log(`   Port: ${imapConfig.port}`);
-    console.log(`   TLS: true`);
-    console.log('');
+    secureConsole.log('[testConnectionWithProgress] IMAP Config retrieved', { 
+      host: imapConfig.host,
+      port: imapConfig.port,
+    });
 
     // Step 3: Authenticate with Provider
-    console.log('🔐 STEP 3: Creating IMAP provider and authenticating...\n');
+    secureConsole.log('[testConnectionWithProgress] Creating provider and authenticating');
     const { ImapEmailProvider } = await import('../services/email/imap-provider');
 
     const testProvider = new ImapEmailProvider({
@@ -641,32 +599,27 @@ export async function testConnectionWithProgress(req: Request, res: Response) {
       },
     });
 
-    console.log('✅ Provider instance created');
-    console.log('🚀 Starting authentication process...\n');
+    secureConsole.log('[testConnectionWithProgress] Provider instance created');
+    secureConsole.log('[testConnectionWithProgress] Starting authentication');
 
     const authStartTime = Date.now();
     
     const authenticated = await testProvider.authenticate();
     
     const authDuration = ((Date.now() - authStartTime) / 1000).toFixed(2);
-    console.log(`\n⏱️  Authentication took ${authDuration} seconds`);
+    secureConsole.log('[testConnectionWithProgress] Authentication completed', { duration: authDuration });
 
     // Always try to disconnect properly
-    console.log('🔌 Disconnecting test provider...');
+    secureConsole.log('[testConnectionWithProgress] Disconnecting test provider');
     try {
       await testProvider.disconnect();
-      console.log('✅ Disconnected successfully\n');
+      secureConsole.log('[testConnectionWithProgress] Disconnected successfully');
     } catch (disconnectError) {
-      console.error('⚠️  Error disconnecting after test:', disconnectError, '\n');
+      secureConsole.error('[testConnectionWithProgress] Error disconnecting:', disconnectError);
     }
 
     if (authenticated) {
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('✅✅✅ AUTHENTICATION SUCCESS ✅✅✅');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log(`📧 Email: ${email}`);
-      console.log(`🏷️  Provider: ${provider.toUpperCase()}`);
-      console.log('═══════════════════════════════════════════════════════════\n');
+      secureConsole.log('[testConnectionWithProgress] Authentication successful', { provider });
       return res.json({
         success: true,
         step: 4,
@@ -677,13 +630,7 @@ export async function testConnectionWithProgress(req: Request, res: Response) {
         email: email,
       });
     } else {
-      console.log('═══════════════════════════════════════════════════════════');
-      console.error('❌❌❌ AUTHENTICATION FAILED ❌❌❌');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.error(`📧 Email: ${email}`);
-      console.error(`🏷️  Provider: ${provider.toUpperCase()}`);
-      console.error(`🔑 Password length: ${cleanPassword.length} chars`);
-      console.log('═══════════════════════════════════════════════════════════\n');
+      secureConsole.error('[testConnectionWithProgress] Authentication failed', { provider });
       
       // Provide detailed troubleshooting based on provider
       const troubleshootingMap: Record<string, string> = {
@@ -889,14 +836,11 @@ export async function testConnection(req: Request, res: Response) {
   try {
     const validation = AddEmailSchema.safeParse(req.body);
     if (!validation.success) {
-      return res.status(400).json({
-        error: 'Validation error',
-        details: validation.error.errors,
-      });
+      return sendValidationError(res, new Error('Invalid input'));
     }
 
     let { email, password, provider } = validation.data;
-    console.log(`Testing connection for ${email} (${provider})`);
+    secureConsole.log('[testConnection] Testing connection', { provider });
 
     // Strip spaces from password (Gmail App Passwords have spaces: xxxx xxxx xxxx xxxx)
     const cleanPassword = password.replace(/\s+/g, '');
@@ -904,10 +848,7 @@ export async function testConnection(req: Request, res: Response) {
     // Get IMAP config
     const imapConfig = getImapConfigForProvider(provider);
     if (!imapConfig) {
-      return res.status(400).json({
-        error: 'Invalid provider',
-        message: `Unsupported provider: ${provider}`,
-      });
+      return sendValidationError(res, new Error('Unsupported provider'));
     }
 
     // Import IMAP provider dynamically to test
@@ -924,51 +865,36 @@ export async function testConnection(req: Request, res: Response) {
       },
     });
 
-    console.log(`Attempting to authenticate ${email}...`);
+    secureConsole.log('[testConnection] Attempting authentication', { provider });
     const authenticated = await testProvider.authenticate();
     
     // Always try to disconnect properly
     try {
       await testProvider.disconnect();
     } catch (disconnectError) {
-      console.error('Error disconnecting after test:', disconnectError);
+      secureConsole.error('[testConnection] Error disconnecting:', disconnectError);
     }
 
     if (authenticated) {
-      console.log(`✓ Successfully authenticated ${email}`);
+      secureConsole.log('[testConnection] Authentication successful', { provider });
       res.json({
         success: true,
         message: 'Connection successful',
         connected: true,
       });
     } else {
-      console.error(`✗ Authentication failed for ${email}`);
+      secureConsole.error('[testConnection] Authentication failed', { provider });
       res.status(401).json({
         error: 'Authentication failed',
-        message: `Failed to authenticate ${email}. Please check your email and app password.
+        message: `Please verify your email address and password.
         
-For Gmail:
-- Use an App Password (not your regular password)
-- Enable 2-Step Verification first
-- Generate password at: https://myaccount.google.com/apppasswords
-- App password format: xxxx xxxx xxxx xxxx (copy with spaces, we'll remove them)`,
+For Gmail: Use an App Password (not your regular password)`,
         connected: false,
       });
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Connection test error:', error);
-    res.status(500).json({
-      error: 'Connection test failed',
-      message: `${message}
-
-Troubleshooting:
-- Gmail: Use App Password from myaccount.google.com/apppasswords (copy with spaces)
-- Yahoo: Use generated App Password
-- Outlook: Use your Microsoft password
-- Make sure your email address is correct`,
-      connected: false,
-    });
+    secureConsole.error('[testConnection] Error:', error);
+    sendInternalError(res, error, { action: 'testConnection' });
   }
 }
 
@@ -982,13 +908,10 @@ export function clearCache(req: Request, res: Response) {
     emailService.clearCache(email);
     res.json({
       success: true,
-      message: email ? `Cache cleared for ${email}` : 'All caches cleared',
+      message: 'Cache cleared successfully',
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to clear cache',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    sendInternalError(res, error, { action: 'clearCache' });
   }
 }
 
@@ -1005,50 +928,35 @@ export async function getEmailDetail(req: Request, res: Response) {
     const userEmail = req.query.email as string;
 
     if (!userEmail) {
-      return res.status(400).json({
-        error: 'Missing email parameter',
-        message: 'Please provide ?email=user@example.com',
-      });
+      return sendValidationError(res, new Error('Missing email parameter'));
     }
 
     if (!emailId) {
-      return res.status(400).json({
-        error: 'Missing emailId',
-        message: 'Email ID is required in URL',
-      });
+      return sendValidationError(res, new Error('Missing emailId'));
     }
 
     // Normalize provider (could be 'gmail', 'google', 'outlook', 'microsoft')
     const provider = providerParam?.toLowerCase() === 'google' ? 'gmail' : providerParam?.toLowerCase();
 
     if (!['gmail', 'outlook'].includes(provider)) {
-      return res.status(400).json({
-        error: 'Invalid provider',
-        message: 'Only gmail and outlook are supported',
-      });
+      return sendValidationError(res, new Error('Unsupported provider'));
     }
 
-    console.log(`[Email Detail] Fetching ${provider}/${emailId} for ${userEmail}`);
+    secureConsole.log('[getEmailDetail] Fetching email', { provider });
 
     // Get OAuth credential
     const credentialKey = `${provider === 'gmail' ? 'google' : 'microsoft'}_${userEmail}`;
     let credential = emailCredentialStore.getOAuthCredential(credentialKey);
 
     if (!credential) {
-      console.error(`[Email Detail] No credential found for: ${credentialKey}`);
-      return res.status(401).json({
-        error: 'No OAuth credential',
-        message: `Account ${userEmail} not authenticated with ${provider}`,
-      });
+      secureConsole.error('[getEmailDetail] No credential found', { provider });
+      return sendNotFoundError(res, new Error('No OAuth credential'));
     }
 
     // Decrypt tokens
     const decrypted = decryptTokens(credential);
     if (!decrypted) {
-      return res.status(401).json({
-        error: 'Failed to decrypt credentials',
-        message: 'Please re-authenticate',
-      });
+      return sendAuthenticationError(res, new Error('Failed to decrypt credentials'));
     }
 
     // Create OAuth provider
@@ -1067,21 +975,15 @@ export async function getEmailDetail(req: Request, res: Response) {
 
     const authenticated = await oauthProvider.authenticate();
     if (!authenticated) {
-      return res.status(401).json({
-        error: 'Authentication failed',
-        message: 'Could not authenticate OAuth provider',
-      });
+      return sendAuthenticationError(res, new Error('OAuth authentication failed'));
     }
 
     // Fetch full email detail
-    console.log(`[Email Detail] Fetching full email from ${provider} API...`);
+    secureConsole.log('[getEmailDetail] Fetching full email from API', { provider });
     const emailDetail = await oauthProvider.getEmailDetail(emailId);
 
     if (!emailDetail) {
-      return res.status(404).json({
-        error: 'Email not found',
-        message: `Email ${emailId} not found on ${provider}`,
-      });
+      return sendNotFoundError(res, new Error('Email not found'));
     }
 
     // Return normalized email detail
@@ -1090,11 +992,8 @@ export async function getEmailDetail(req: Request, res: Response) {
       email: emailDetail,
     });
   } catch (error) {
-    console.error('[Email Detail Error]:', error);
-    res.status(500).json({
-      error: 'Failed to fetch email detail',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    secureConsole.error('[getEmailDetail] Error:', error);
+    sendInternalError(res, error, { action: 'getEmailDetail' });
   }
 }
 
@@ -1110,56 +1009,38 @@ export async function markEmailAsRead(req: Request, res: Response) {
     const read = readParam === 'true';
 
     if (!userEmail) {
-      return res.status(400).json({
-        error: 'Missing email parameter',
-        message: 'Please provide ?email=user@example.com',
-      });
+      return sendValidationError(res, new Error('Missing email parameter'));
     }
 
     if (!emailId) {
-      return res.status(400).json({
-        error: 'Missing emailId',
-        message: 'Email ID is required in URL',
-      });
+      return sendValidationError(res, new Error('Missing emailId'));
     }
 
     if (!['true', 'false'].includes(readParam)) {
-      return res.status(400).json({
-        error: 'Invalid read parameter',
-        message: 'read must be "true" or "false"',
-      });
+      return sendValidationError(res, new Error('Invalid read parameter'));
     }
 
     // Normalize provider
     const provider = providerParam?.toLowerCase() === 'google' ? 'gmail' : providerParam?.toLowerCase();
 
     if (!['gmail', 'outlook'].includes(provider)) {
-      return res.status(400).json({
-        error: 'Invalid provider',
-        message: 'Only gmail and outlook are supported',
-      });
+      return sendValidationError(res, new Error('Unsupported provider'));
     }
 
-    console.log(`[Mark Read] Marking ${provider}/${emailId} as ${read ? 'read' : 'unread'}`);
+    secureConsole.log('[markEmailAsRead] Updating email', { provider, read });
 
     // Get OAuth credential
     const credentialKey = `${provider === 'gmail' ? 'google' : 'microsoft'}_${userEmail}`;
     let credential = emailCredentialStore.getOAuthCredential(credentialKey);
 
     if (!credential) {
-      return res.status(401).json({
-        error: 'No OAuth credential',
-        message: `Account ${userEmail} not authenticated with ${provider}`,
-      });
+      return sendAuthenticationError(res, new Error('No OAuth credential'));
     }
 
     // Decrypt tokens
     const decrypted = decryptTokens(credential);
     if (!decrypted) {
-      return res.status(401).json({
-        error: 'Failed to decrypt credentials',
-        message: 'Please re-authenticate',
-      });
+      return sendAuthenticationError(res, new Error('Failed to decrypt credentials'));
     }
 
     // Create OAuth provider
@@ -1178,10 +1059,7 @@ export async function markEmailAsRead(req: Request, res: Response) {
 
     const authenticated = await oauthProvider.authenticate();
     if (!authenticated) {
-      return res.status(401).json({
-        error: 'Authentication failed',
-        message: 'Could not authenticate OAuth provider',
-      });
+      return sendAuthenticationError(res, new Error('OAuth authentication failed'));
     }
 
     // Mark email as read
@@ -1192,11 +1070,8 @@ export async function markEmailAsRead(req: Request, res: Response) {
       message: `Email marked as ${read ? 'read' : 'unread'}`,
     });
   } catch (error) {
-    console.error('[Mark Read Error]:', error);
-    res.status(500).json({
-      error: 'Failed to mark email as read',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    secureConsole.error('[markEmailAsRead] Error:', error);
+    sendInternalError(res, error, { action: 'markEmailAsRead' });
   }
 }
 
@@ -1210,49 +1085,34 @@ export async function archiveEmail(req: Request, res: Response) {
     const userEmail = req.query.email as string;
 
     if (!userEmail) {
-      return res.status(400).json({
-        error: 'Missing email parameter',
-        message: 'Please provide ?email=user@example.com',
-      });
+      return sendValidationError(res, new Error('Missing email parameter'));
     }
 
     if (!emailId) {
-      return res.status(400).json({
-        error: 'Missing emailId',
-        message: 'Email ID is required in URL',
-      });
+      return sendValidationError(res, new Error('Missing emailId'));
     }
 
     // Normalize provider
     const provider = providerParam?.toLowerCase() === 'google' ? 'gmail' : providerParam?.toLowerCase();
 
     if (!['gmail', 'outlook'].includes(provider)) {
-      return res.status(400).json({
-        error: 'Invalid provider',
-        message: 'Only gmail and outlook are supported',
-      });
+      return sendValidationError(res, new Error('Unsupported provider'));
     }
 
-    console.log(`[Archive] Archiving ${provider}/${emailId}`);
+    secureConsole.log('[archiveEmail] Archiving email', { provider });
 
     // Get OAuth credential
     const credentialKey = `${provider === 'gmail' ? 'google' : 'microsoft'}_${userEmail}`;
     let credential = emailCredentialStore.getOAuthCredential(credentialKey);
 
     if (!credential) {
-      return res.status(401).json({
-        error: 'No OAuth credential',
-        message: `Account ${userEmail} not authenticated with ${provider}`,
-      });
+      return sendAuthenticationError(res, new Error('No OAuth credential'));
     }
 
     // Decrypt tokens
     const decrypted = decryptTokens(credential);
     if (!decrypted) {
-      return res.status(401).json({
-        error: 'Failed to decrypt credentials',
-        message: 'Please re-authenticate',
-      });
+      return sendAuthenticationError(res, new Error('Failed to decrypt credentials'));
     }
 
     // Create OAuth provider
@@ -1271,10 +1131,7 @@ export async function archiveEmail(req: Request, res: Response) {
 
     const authenticated = await oauthProvider.authenticate();
     if (!authenticated) {
-      return res.status(401).json({
-        error: 'Authentication failed',
-        message: 'Could not authenticate OAuth provider',
-      });
+      return sendAuthenticationError(res, new Error('OAuth authentication failed'));
     }
 
     // Archive email
@@ -1285,11 +1142,8 @@ export async function archiveEmail(req: Request, res: Response) {
       message: 'Email archived',
     });
   } catch (error) {
-    console.error('[Archive Error]:', error);
-    res.status(500).json({
-      error: 'Failed to archive email',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    secureConsole.error('[archiveEmail] Error:', error);
+    sendInternalError(res, error, { action: 'archiveEmail' });
   }
 }
 
@@ -1303,49 +1157,34 @@ export async function deleteEmail(req: Request, res: Response) {
     const userEmail = req.query.email as string;
 
     if (!userEmail) {
-      return res.status(400).json({
-        error: 'Missing email parameter',
-        message: 'Please provide ?email=user@example.com',
-      });
+      return sendValidationError(res, new Error('Missing email parameter'));
     }
 
     if (!emailId) {
-      return res.status(400).json({
-        error: 'Missing emailId',
-        message: 'Email ID is required in URL',
-      });
+      return sendValidationError(res, new Error('Missing emailId'));
     }
 
     // Normalize provider
     const provider = providerParam?.toLowerCase() === 'google' ? 'gmail' : providerParam?.toLowerCase();
 
     if (!['gmail', 'outlook'].includes(provider)) {
-      return res.status(400).json({
-        error: 'Invalid provider',
-        message: 'Only gmail and outlook are supported',
-      });
+      return sendValidationError(res, new Error('Unsupported provider'));
     }
 
-    console.log(`[Delete] Deleting ${provider}/${emailId}`);
+    secureConsole.log('[deleteEmail] Deleting email', { provider });
 
     // Get OAuth credential
     const credentialKey = `${provider === 'gmail' ? 'google' : 'microsoft'}_${userEmail}`;
     let credential = emailCredentialStore.getOAuthCredential(credentialKey);
 
     if (!credential) {
-      return res.status(401).json({
-        error: 'No OAuth credential',
-        message: `Account ${userEmail} not authenticated with ${provider}`,
-      });
+      return sendAuthenticationError(res, new Error('No OAuth credential'));
     }
 
     // Decrypt tokens
     const decrypted = decryptTokens(credential);
     if (!decrypted) {
-      return res.status(401).json({
-        error: 'Failed to decrypt credentials',
-        message: 'Please re-authenticate',
-      });
+      return sendAuthenticationError(res, new Error('Failed to decrypt credentials'));
     }
 
     // Create OAuth provider
@@ -1364,10 +1203,7 @@ export async function deleteEmail(req: Request, res: Response) {
 
     const authenticated = await oauthProvider.authenticate();
     if (!authenticated) {
-      return res.status(401).json({
-        error: 'Authentication failed',
-        message: 'Could not authenticate OAuth provider',
-      });
+      return sendAuthenticationError(res, new Error('OAuth authentication failed'));
     }
 
     // Delete email
@@ -1378,11 +1214,8 @@ export async function deleteEmail(req: Request, res: Response) {
       message: 'Email deleted',
     });
   } catch (error) {
-    console.error('[Delete Error]:', error);
-    res.status(500).json({
-      error: 'Failed to delete email',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    secureConsole.error('[deleteEmail] Error:', error);
+    sendInternalError(res, error, { action: 'deleteEmail' });
   }
 }
 
@@ -1398,9 +1231,6 @@ export async function disconnectAll(_req: Request, res: Response) {
       message: 'All providers disconnected',
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to disconnect',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    sendInternalError(res, error, { action: 'disconnectAll' });
   }
 }

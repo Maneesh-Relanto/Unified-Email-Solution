@@ -19,6 +19,13 @@ import {
 } from '../services/oauth/types';
 import { emailCredentialStore } from '../config/email-config';
 import { encrypt, decrypt } from '../utils/crypto';
+import { secureConsole } from '../utils/logging-sanitizer';
+import {
+  sendValidationError,
+  sendAuthenticationError,
+  sendInternalError,
+  ErrorCategory,
+} from '../utils/error-handler';
 
 const router = Router();
 
@@ -31,20 +38,16 @@ function handleOAuthError(error: any, res: Response, provider: string) {
   logOAuthError(provider as any, 'Route error', error);
 
   if (error instanceof OAuthError) {
-    return res.status(400).json({
-      success: false,
-      error: error.message,
+    return sendValidationError(res, error, {
+      provider,
       code: error.code,
-      provider: error.provider,
-    } as OAuthErrorResponse);
+    });
   }
 
-  return res.status(500).json({
-    success: false,
-    error: 'An unexpected error occurred',
-    code: 'INTERNAL_ERROR',
-    message: error.message,
-  } as OAuthErrorResponse);
+  return sendInternalError(res, error, {
+    provider,
+    action: 'oauth-callback',
+  });
 }
 
 // ===== GOOGLE OAUTH ROUTES =====
@@ -58,11 +61,7 @@ function handleOAuthError(error: any, res: Response, provider: string) {
 router.get('/google/login', async (req: Request, res: Response) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-      return res.status(400).json({
-        success: false,
-        error: 'Google OAuth not configured',
-        code: 'GOOGLE_NOT_CONFIGURED',
-      });
+      return sendValidationError(res, new Error('Google OAuth not configured'));
     }
 
     const source = (req.query.source || 'integration') as string;
@@ -102,30 +101,18 @@ router.get('/google/callback', async (req: Request, res: Response) => {
         error,
         error_description,
       });
-      return res.status(400).json({
-        success: false,
-        error: error_description || 'Authorization failed',
-        code: error,
-      });
+      return sendValidationError(res, new Error('Authorization failed'));
     }
 
     if (!code || !state) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing code or state parameter',
-        code: 'MISSING_PARAMETERS',
-      });
+      return sendValidationError(res, new Error('Missing required parameters'));
     }
 
     // Validate state
     const stateData = getAndDeleteStateData(state as string);
     if (!stateData) {
       logOAuthError('google', 'Invalid or expired state', { state });
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid or expired state',
-        code: 'INVALID_STATE',
-      });
+      return sendValidationError(res, new Error('Invalid or expired state'));
     }
 
     logOAuthEvent('google', 'Callback received', {
@@ -194,11 +181,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
 router.get('/microsoft/login', async (req: Request, res: Response) => {
   try {
     if (!process.env.MICROSOFT_CLIENT_ID || !process.env.MICROSOFT_CLIENT_SECRET) {
-      return res.status(400).json({
-        success: false,
-        error: 'Microsoft OAuth not configured',
-        code: 'MICROSOFT_NOT_CONFIGURED',
-      });
+      return sendValidationError(res, new Error('Microsoft OAuth not configured'));
     }
 
     const source = (req.query.source || 'integration') as string;
@@ -237,30 +220,18 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
         error,
         error_description,
       });
-      return res.status(400).json({
-        success: false,
-        error: error_description || 'Authorization failed',
-        code: error,
-      });
+      return sendValidationError(res, new Error('Authorization failed'));
     }
 
     if (!code || !state) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing code or state parameter',
-        code: 'MISSING_PARAMETERS',
-      });
+      return sendValidationError(res, new Error('Missing required parameters'));
     }
 
     // Validate state
     const stateData = getAndDeleteStateData(state as string);
     if (!stateData) {
       logOAuthError('microsoft', 'Invalid or expired state', { state });
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid or expired state',
-        code: 'INVALID_STATE',
-      });
+      return sendValidationError(res, new Error('Invalid or expired state'));
     }
 
     logOAuthEvent('microsoft', 'Callback received', {
@@ -352,10 +323,7 @@ export async function handleAuthStatus(req: Request, res: Response) {
     });
   } catch (error) {
     logOAuthError('system' as any, 'Status check failed', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to check auth status',
-    });
+    sendInternalError(res, error, { action: 'handleAuthStatus' });
   }
 }
 
@@ -387,10 +355,7 @@ export async function handleOAuthConfigStatus(req: Request, res: Response) {
     });
   } catch (error) {
     logOAuthError('system' as any, 'OAuth config check failed', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to check OAuth configuration',
-    });
+    sendInternalError(res, error, { action: 'handleOAuthConfigStatus' });
   }
 }
 
@@ -399,19 +364,13 @@ export async function handleAuthDisconnect(req: Request, res: Response) {
     const { provider, email } = req.body;
 
     if (!provider || !email) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing provider or email',
-      });
+      return sendValidationError(res, new Error('Missing required parameters'));
     }
 
     const credential = emailCredentialStore.getOAuthCredential(`${provider}_${email}`);
 
     if (!credential) {
-      return res.status(404).json({
-        success: false,
-        error: 'Credential not found',
-      });
+      return sendValidationError(res, new Error('Credential not found'));
     }
 
     // Revoke token
@@ -435,14 +394,11 @@ export async function handleAuthDisconnect(req: Request, res: Response) {
 
     res.json({
       success: true,
-      message: `Disconnected from ${provider}`,
+      message: `Disconnected successfully`,
     });
   } catch (error) {
     logOAuthError('system' as any, 'Disconnect failed', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to disconnect',
-    });
+    sendInternalError(res, error, { action: 'handleAuthDisconnect' });
   }
 }
 
