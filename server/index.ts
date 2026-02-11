@@ -6,7 +6,7 @@ import path from "path";
 dotenv.config({ path: path.resolve(process.cwd(), "confidential/.env") });
 
 import express from "express";
-import cors from "cors";
+import { applySecurityMiddleware } from "./middleware/security";
 import { handleDemo } from "./routes/demo";
 import authRoutes, { handleAuthStatus, handleAuthDisconnect, handleOAuthConfigStatus } from "./routes/auth";
 import {
@@ -33,8 +33,11 @@ import {
 export function createServer() {
   const app = express();
 
-  // Middleware
-  app.use(cors());
+  // Apply comprehensive security middleware FIRST
+  // This includes: Helmet headers, CORS whitelist, rate limiting, HTTPS enforcement
+  applySecurityMiddleware(app);
+
+  // Then apply JSON parsing middleware
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
